@@ -5433,6 +5433,14 @@ body.jk-intro-lock{overflow:hidden!important;}
             <button id="removePhotoBtn" class="btn outline" style="padding: 10px 18px; font-size: 13.5px; color: var(--danger); border-color: #fca5a5; display: none;">🗑️ Hapus</button>
           </div>
         </div>
+
+        <div class="achv-panel" id="achvPanel" aria-label="Lencana pencapaian">
+          <div class="achv-panel-head">
+            <span class="section-kicker">Pencapaian</span>
+            <h4>Lencana Anda</h4>
+          </div>
+          <div class="achv-grid" id="achvGrid"></div>
+        </div>
         
         <div style="display: flex; flex-direction: column; gap: 16px;">  
           <div class="input-field"><label>User ID / NIK (Permanen)</label><input type="text" id="userId" readonly style="background: #e4decc; cursor: not-allowed; opacity: 0.8; font-weight:700;"></div>
@@ -8909,3 +8917,146 @@ html[data-theme="dark"] #contrib .impact-action-icon{ background:rgba(0,230,160,
 html[data-theme="dark"] #contrib .impact-action-arrow{ background:rgba(255,255,255,.08)!important; color:var(--gk-ink)!important; }
 html[data-theme="dark"] #contrib .impact-action-text small{ color:var(--gk-muted)!important; }
 </style>
+<style id="dark-mode-dashboard-panel-fix-v8">
+/* ============================================================
+   DARK MODE — DASHBOARD ANALYTICS PANELS (Leaderboard, Carbon
+   Trend, Emission Mix, Emission Detail)
+   These use a completely different container class
+   (.dashboard-panel) that was never given a dark-mode background
+   at all — so every number/name inside kept getting forced to a
+   light color (correctly, for dark mode) while sitting on a card
+   that always stayed white. Fixing the container here is what
+   makes all the text already-forced-light finally make sense.
+   ============================================================ */
+html[data-theme="dark"] #dashboard .dashboard-panel{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #dashboard .trend-mode-pills{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .trend-filter-compact{ background:rgba(255,255,255,.05)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .trend-filter-compact select{ background:var(--gk-card)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .dashboard-breakdown-split>div{ background:rgba(255,255,255,.05)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .panel-link-btn{ background:rgba(0,230,160,.12)!important; border-color:rgba(0,230,160,.22)!important; color:#8ff3cf!important; }
+html[data-theme="dark"] #dashboard .leaderboard-controls select{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; color:var(--gk-ink)!important; }
+html[data-theme="dark"] #dashboard .section-kicker{ color:#5eead4!important; }
+html[data-theme="dark"] #dashboard .category-legend b,
+html[data-theme="dark"] #dashboard .category-legend strong{ color:var(--gk-ink)!important; }
+
+/* ---- Chat wallpaper: belt-and-suspenders in case the doodle PNG
+   itself carries an opaque light backdrop ---- */
+html[data-theme="dark"] #chat .chat-messages-box{
+  background-color:var(--gk-paper)!important;
+}
+</style>
+<style id="achievement-badges-v1">
+/* ============================================================
+   ACHIEVEMENT BADGES — Profile page
+   ============================================================ */
+.achv-panel{
+  margin:22px 0 6px;padding:20px;border-radius:18px;
+  background:linear-gradient(135deg,#f7fbf9,#f1f7f3);
+  border:1px solid #e0ede6;
+}
+.achv-panel-head{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.achv-panel-head h4{margin:2px 0 0;font-size:16px;font-weight:800}
+.achv-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;
+}
+.achv-badge{
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  padding:14px 8px;border-radius:16px;background:#fff;border:1px solid #e7eee9;
+  position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.16,.9,.4,1),box-shadow .3s ease;
+  cursor:default;
+}
+.achv-badge .achv-icon{
+  width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;
+  background:linear-gradient(135deg,#e9f7f0,#dcf4e8);
+  filter:grayscale(1) opacity(.45);
+  transition:filter .4s ease,transform .4s ease;
+}
+.achv-badge .achv-label{font-size:10.5px;font-weight:800;line-height:1.25;color:var(--text-muted)}
+.achv-badge .achv-sub{font-size:8.5px;color:#9aa39d;font-weight:600}
+.achv-badge.unlocked{border-color:rgba(0,180,120,.35);box-shadow:0 10px 24px -14px rgba(6,88,64,.35);}
+.achv-badge.unlocked .achv-icon{
+  filter:none;background:linear-gradient(135deg,#a7f3d0,#5eead4);
+  animation:achvPop .6s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 0 0 6px rgba(94,234,212,.16);
+}
+.achv-badge.unlocked .achv-label{color:var(--esg-dark)}
+.achv-badge.unlocked::before{
+  content:"✓";position:absolute;top:6px;right:8px;font-size:10px;font-weight:900;
+  color:#0a8f5c;background:#fff;width:16px;height:16px;border-radius:50%;
+  display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.achv-badge:hover{transform:translateY(-4px)}
+@keyframes achvPop{0%{transform:scale(.4) rotate(-15deg)}60%{transform:scale(1.15) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+
+html[data-theme="dark"] .achv-panel{
+  background:linear-gradient(135deg,#1c2921,#202e26)!important;border-color:var(--gk-line)!important;
+}
+html[data-theme="dark"] .achv-badge{ background:var(--gk-card)!important;border-color:var(--gk-line)!important; }
+html[data-theme="dark"] .achv-badge .achv-icon{ background:rgba(255,255,255,.08)!important; }
+html[data-theme="dark"] .achv-badge.unlocked .achv-icon{ background:linear-gradient(135deg,#a7f3d0,#5eead4)!important; }
+html[data-theme="dark"] .achv-badge .achv-label{ color:var(--gk-muted)!important; }
+html[data-theme="dark"] .achv-badge.unlocked .achv-label{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; }
+
+@media(prefers-reduced-motion: reduce){ .achv-badge.unlocked .achv-icon{animation:none!important} }
+</style>
+
+<script id="achievement-badges-js-v1">
+(function(){
+  'use strict';
+  /* Purely additive & defensive: never throws, never touches any
+     existing variable/function — just reads what's already on the
+     page/localStorage to decide which badges light up. */
+  var DEFS = [
+    {id:'active',icon:'🌱',label:'Akun Aktif',sub:'Bergabung',always:true},
+    {id:'contrib',icon:'🌳',label:'Kontributor',sub:'1+ aksi',check:function(){
+      var box=document.getElementById('contribHistoryBox');
+      return !!(box && box.children && box.children.length>0 && !/belum ada/i.test(box.textContent||''));
+    }},
+    {id:'team',icon:'👥',label:'Tim Aktif',sub:'Kolaborasi',check:function(){
+      var el=document.getElementById('dashTeamMembers');
+      return !!(el && parseInt(el.textContent||'0',10)>0);
+    }},
+    {id:'lowcarbon',icon:'🍃',label:'Rendah Emisi',sub:'Netto minim',check:function(){
+      var el=document.getElementById('categoryDonutTotal');
+      if(!el) return false;
+      var v=parseFloat((el.textContent||'0').replace(',','.'));
+      return !isNaN(v) && v>=0 && v<5;
+    }},
+    {id:'streak',icon:'🔥',label:'Konsisten',sub:'Rutin catat',check:function(){
+      try{
+        var raw=localStorage.getItem('JejakKarbonKu_LEADERBOARD_V20_FAST');
+        return !!raw;
+      }catch(e){ return false; }
+    }},
+    {id:'installer',icon:'📲',label:'Selalu Siap',sub:'App terpasang',check:function(){
+      try{ return window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; }
+    }}
+  ];
+
+  function renderBadges(){
+    var grid = document.getElementById('achvGrid');
+    if(!grid) return;
+    try{
+      grid.innerHTML = DEFS.map(function(d){
+        var unlocked = d.always || (typeof d.check === 'function' && (function(){ try{ return !!d.check(); }catch(e){ return false; } })());
+        return '<div class="achv-badge'+(unlocked?' unlocked':'')+'" title="'+d.label+'">'+
+          '<div class="achv-icon">'+d.icon+'</div>'+
+          '<div class="achv-label">'+d.label+'</div>'+
+          '<div class="achv-sub">'+(unlocked?d.sub:'Terkunci')+'</div>'+
+        '</div>';
+      }).join('');
+    }catch(e){ /* fail silent, never break the profile page */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderBadges, 400); });
+  var origNav = window.navigateToPage;
+  if(typeof origNav === 'function'){
+    window.navigateToPage = function(page){
+      var r = origNav.apply(this, arguments);
+      if(page === 'profile') setTimeout(renderBadges, 250);
+      return r;
+    };
+  }
+})();
+</script>
