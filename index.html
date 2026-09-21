@@ -18,6 +18,10 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<!-- Motion design stack: GSAP + ScrollTrigger for parallax/scroll choreography, Three.js for the ambient intro visual. Loaded defensively — every use below checks the library actually loaded before touching it, so the app works identically even if a CDN is blocked. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
 window.deferredPwaPrompt = null;
@@ -9306,3 +9310,232 @@ html[data-theme="dark"] [style*="background:rgba(255,255,255,0.8)"]{
   .news-image,.ranking-podium-card,.team-preview-item{animation:none!important;transition:none!important}
 }
 </style>
+<style id="motion-design-pack-v1">
+/* ============================================================
+   MOTION DESIGN PACK — GSAP / ScrollTrigger / Three.js driven
+   effects layered on top of the existing app. Everything here is
+   additive and defensive: if a CDN library fails to load, the
+   corresponding JS blocks are simply skipped (checked at runtime),
+   the app looks/works exactly as before, nothing breaks.
+   ============================================================ */
+
+/* Cursor-spotlight glow that follows the mouse across a card */
+.card,.dashboard-panel,.kpi-main{ position:relative; }
+.card::after,.dashboard-panel::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  opacity:0;transition:opacity .35s ease;z-index:5;
+  background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(94,234,212,.14),transparent 70%);
+}
+.card:hover::after,.dashboard-panel:hover::after{ opacity:1; }
+html[data-theme="dark"] .card::after,html[data-theme="dark"] .dashboard-panel::after{
+  background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(94,234,212,.10),transparent 70%);
+}
+
+/* 3D tilt container for kpi-main — perspective set on the parent */
+.kpi-row,.dashboard-insights-grid{ perspective:1200px; }
+.kpi-main{ transform-style:preserve-3d; will-change:transform; }
+
+/* Magnetic buttons need to be free to translate without layout shift */
+.btn.primary,.nature-btn.primary{ display:inline-flex; }
+
+/* Parallax-ready hero */
+#dashboard .nature-banner{ background-position:center calc(50% + var(--jk-parallax,0px))!important; }
+
+/* Three.js intro canvas */
+.jk-intro-three{ position:absolute; inset:0; z-index:0; opacity:0; transition:opacity 1.2s ease; }
+.jk-intro-three.jk-three-ready{ opacity:.9; }
+
+@media(prefers-reduced-motion: reduce){
+  .card::after,.dashboard-panel::after{ display:none!important; }
+}
+</style>
+
+<script id="motion-design-pack-js-v1">
+(function(){
+  'use strict';
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- 1) Cursor-spotlight on cards (pure JS, no lib needed) ---------- */
+  function setupSpotlight(){
+    document.querySelectorAll('.card,.dashboard-panel,.kpi-main').forEach(function(card){
+      if(card.__jkSpot) return; card.__jkSpot = true;
+      card.addEventListener('mousemove', function(e){
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (e.clientX-r.left)+'px');
+        card.style.setProperty('--my', (e.clientY-r.top)+'px');
+      });
+    });
+  }
+
+  /* ---------- 2) GSAP magnetic buttons ---------- */
+  function setupMagnetic(){
+    if(typeof gsap === 'undefined' || reduceMotion) return;
+    document.querySelectorAll('.btn.primary,.nature-btn.primary').forEach(function(btn){
+      if(btn.__jkMag) return; btn.__jkMag = true;
+      var xTo = gsap.quickTo(btn, "x", {duration:.45, ease:"power3"});
+      var yTo = gsap.quickTo(btn, "y", {duration:.45, ease:"power3"});
+      btn.addEventListener('mousemove', function(e){
+        var r = btn.getBoundingClientRect();
+        xTo((e.clientX - r.left - r.width/2) * 0.22);
+        yTo((e.clientY - r.top - r.height/2) * 0.32);
+      });
+      btn.addEventListener('mouseleave', function(){ xTo(0); yTo(0); });
+    });
+  }
+
+  /* ---------- 3) Subtle 3D tilt on KPI cards ---------- */
+  function setupTilt(){
+    if(reduceMotion) return;
+    document.querySelectorAll('.kpi-main').forEach(function(card){
+      if(card.__jkTilt) return; card.__jkTilt = true;
+      card.addEventListener('mousemove', function(e){
+        var r = card.getBoundingClientRect();
+        var px = (e.clientX - r.left)/r.width - .5;
+        var py = (e.clientY - r.top)/r.height - .5;
+        var rx = (py * -6).toFixed(2), ry = (px * 8).toFixed(2);
+        if(typeof gsap !== 'undefined'){
+          gsap.to(card, {duration:.35, ease:"power2", rotateX:rx, rotateY:ry, transformPerspective:800});
+        } else {
+          card.style.transform = 'perspective(800px) rotateX('+rx+'deg) rotateY('+ry+'deg)';
+        }
+      });
+      card.addEventListener('mouseleave', function(){
+        if(typeof gsap !== 'undefined'){ gsap.to(card, {duration:.5, ease:"power3", rotateX:0, rotateY:0}); }
+        else { card.style.transform = ''; }
+      });
+    });
+  }
+
+  /* ---------- 4) Parallax shift on the dashboard hero photo ---------- */
+  var parallaxTicking = false;
+  function updateParallax(){
+    var el = document.querySelector('#dashboard.page.active .nature-banner');
+    if(!el){ parallaxTicking = false; return; }
+    var rect = el.getBoundingClientRect();
+    var vh = window.innerHeight || 800;
+    var progress = Math.max(-1, Math.min(1, (vh/2 - (rect.top + rect.height/2)) / vh));
+    el.style.setProperty('--jk-parallax', (progress * 26).toFixed(1)+'px');
+    parallaxTicking = false;
+  }
+  function onScroll(){
+    if(reduceMotion) return;
+    if(!parallaxTicking){ parallaxTicking = true; requestAnimationFrame(updateParallax); }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true, capture:true});
+
+  /* ---------- 5) GSAP ScrollTrigger stagger for dashboard analytics panels ---------- */
+  function setupScrollTrigger(){
+    if(typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined' || reduceMotion) return;
+    gsap.registerPlugin(ScrollTrigger);
+    document.querySelectorAll('#dashboard .dashboard-panel').forEach(function(panel, i){
+      if(panel.__jkST) return; panel.__jkST = true;
+      gsap.fromTo(panel, {opacity:0, y:34, scale:.97}, {
+        opacity:1, y:0, scale:1, duration:.7, ease:"power3.out", delay:(i%3)*0.08,
+        scrollTrigger:{ trigger:panel, start:"top 88%", once:true }
+      });
+    });
+  }
+
+  /* ---------- 6) Three.js ambient particle field for the intro splash ---------- */
+  var introThree = null;
+  function startIntroThree(){
+    if(typeof THREE === 'undefined' || reduceMotion) return;
+    var host = document.querySelector('.jk-intro-bg');
+    if(!host || host.querySelector('.jk-intro-three')) return;
+    try{
+      var canvas = document.createElement('canvas');
+      canvas.className = 'jk-intro-three';
+      host.insertBefore(canvas, host.firstChild);
+
+      var w = host.clientWidth || window.innerWidth, h = host.clientHeight || window.innerHeight;
+      var renderer = new THREE.WebGLRenderer({canvas:canvas, alpha:true, antialias:true});
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+      renderer.setSize(w, h);
+
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 100);
+      camera.position.z = 12;
+
+      var count = w < 700 ? 90 : 180;
+      var geo = new THREE.BufferGeometry();
+      var positions = new Float32Array(count*3);
+      for(var i=0;i<count;i++){
+        positions[i*3] = (Math.random()-0.5)*22;
+        positions[i*3+1] = (Math.random()-0.5)*14;
+        positions[i*3+2] = (Math.random()-0.5)*10;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      var mat = new THREE.PointsMaterial({ color:0x5eead4, size:0.09, transparent:true, opacity:.75 });
+      var points = new THREE.Points(geo, mat);
+      scene.add(points);
+
+      var mat2 = new THREE.PointsMaterial({ color:0xa7f3d0, size:0.05, transparent:true, opacity:.5 });
+      var points2 = new THREE.Points(geo, mat2);
+      points2.scale.set(1.4,1.4,1.4);
+      scene.add(points2);
+
+      var raf = null, start = Date.now(), disposed = false;
+      function tick(){
+        if(disposed) return;
+        var t = (Date.now()-start)/1000;
+        points.rotation.y = t * 0.03;
+        points.rotation.x = Math.sin(t*0.1)*0.05;
+        points2.rotation.y = -t * 0.02;
+        renderer.render(scene, camera);
+        raf = requestAnimationFrame(tick);
+      }
+      tick();
+      requestAnimationFrame(function(){ canvas.classList.add('jk-three-ready'); });
+
+      introThree = {
+        dispose: function(){
+          disposed = true;
+          if(raf) cancelAnimationFrame(raf);
+          try{ geo.dispose(); mat.dispose(); mat2.dispose(); renderer.dispose(); }catch(e){}
+          if(canvas.parentNode) canvas.parentNode.removeChild(canvas);
+        }
+      };
+    }catch(e){ /* WebGL unavailable or blocked — fail silently, CSS blobs already cover the visual */ }
+  }
+  function stopIntroThree(){
+    if(introThree){ introThree.dispose(); introThree = null; }
+  }
+
+  function initAll(){
+    setupSpotlight();
+    setupMagnetic();
+    setupTilt();
+    setupScrollTrigger();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(initAll, 400);
+    setTimeout(startIntroThree, 50);
+  });
+  var origNav = window.navigateToPage;
+  if(typeof origNav === 'function'){
+    window.navigateToPage = function(){
+      var r = origNav.apply(this, arguments);
+      setTimeout(initAll, 250);
+      return r;
+    };
+  }
+  /* closeIntro() is a private function inside another IIFE, not on
+     window, so we can't wrap it directly — watch for the splash
+     element actually leaving the DOM instead, and tear the WebGL
+     scene down at that exact moment either way. */
+  document.addEventListener('DOMContentLoaded', function(){
+    var splash = document.getElementById('jkIntroSplash');
+    if(!splash){ return; }
+    var mo = new MutationObserver(function(){
+      if(!document.body.contains(splash)){
+        stopIntroThree();
+        mo.disconnect();
+      }
+    });
+    mo.observe(document.body, {childList:true, subtree:true});
+    /* Safety net in case the observer is ever missed for any reason */
+    setTimeout(stopIntroThree, 20000);
+  });
+})();
+</script>
