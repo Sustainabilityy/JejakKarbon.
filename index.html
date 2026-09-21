@@ -9239,3 +9239,70 @@ html[data-theme="dark"] .jk-skel-loading{
   });
 })();
 </script>
+<style id="dark-mode-final-sweep-v9">
+/* ============================================================
+   DARK MODE — FINAL SWEEP
+   A full audit of every plain-class rule in the whole stylesheet
+   that sets a light/white background, cross-checked against what
+   already has a dark-mode counterpart. These are the real gaps
+   that were left: ranking podium cards, dashboard leaderboard
+   rows, news feed cards, the chat message menu, and the chat
+   wallpaper + its empty-state pill.
+   ============================================================ */
+
+/* Ranking page — top-3 podium cards */
+html[data-theme="dark"] .ranking-podium-card{
+  background:var(--gk-card)!important;border-color:var(--gk-line)!important;color:var(--gk-ink)!important;
+}
+html[data-theme="dark"] .ranking-podium-card.rank-1{ background:linear-gradient(145deg,#1f2c24,#16332a)!important; border-color:rgba(0,230,160,.3)!important; }
+html[data-theme="dark"] .ranking-podium-card.rank-2,
+html[data-theme="dark"] .ranking-podium-card.rank-3{ background:linear-gradient(145deg,#1f2c24,#202e26)!important; }
+html[data-theme="dark"] .ranking-podium-card img{ background:rgba(255,255,255,.08)!important;border-color:var(--gk-card)!important; }
+html[data-theme="dark"] .ranking-podium-card em{ background:rgba(255,255,255,.10)!important;color:var(--gk-ink)!important; }
+
+/* Dashboard — leaderboard preview rows */
+html[data-theme="dark"] .team-preview-item{ background:rgba(255,255,255,.05)!important;border-color:var(--gk-line)!important; }
+html[data-theme="dark"] .team-preview-avatar{ background:rgba(255,255,255,.08)!important; }
+
+/* Dashboard — news / insight feed cards */
+html[data-theme="dark"] .news-card{ background:var(--gk-card)!important;border-color:var(--gk-line)!important; }
+
+/* Chat — message action menu (reply/delete/etc popup) */
+html[data-theme="dark"] .chat-msg-dropdown{ background:var(--gk-card)!important;box-shadow:0 10px 30px rgba(0,0,0,.4)!important; }
+html[data-theme="dark"] .chat-msg-dropdown button{ border-bottom-color:var(--gk-line)!important; }
+html[data-theme="dark"] .chat-quick-reactions-strip{ background:var(--gk-card)!important; }
+
+/* Small consistency fixes */
+html[data-theme="dark"] .btn.danger{ background:rgba(180,70,60,.16)!important; }
+html[data-theme="dark"] .bar{ background:rgba(255,255,255,.08)!important; }
+
+/* Chat wallpaper: stop relying on the doodle PNG's own transparency
+   — just force a flat dark surface underneath it, guaranteed. */
+html[data-theme="dark"] #chat .chat-messages-box{
+  background-image:none!important;
+  background-color:var(--gk-paper)!important;
+}
+/* The "pilih ruang obrolan" pinned hint pill (inline rgba white) */
+html[data-theme="dark"] [style*="background: rgba(255,255,255,0.8)"],
+html[data-theme="dark"] [style*="background:rgba(255,255,255,0.8)"]{
+  background:var(--gk-card)!important;color:var(--gk-ink)!important;
+}
+</style>
+
+<style id="polish-v4-freshly-fixed-areas">
+/* A bit of premium motion on the areas just brought into dark mode,
+   so they don't just "work" but actually feel designed. */
+.news-image{ overflow:hidden; }
+.news-image{ background-size:cover!important; transition:transform .6s cubic-bezier(.16,.9,.4,1); }
+.news-card:hover .news-image{ transform:scale(1.08); }
+.ranking-podium-card{ animation:podiumRise .5s cubic-bezier(.16,.9,.4,1) both; }
+.ranking-podium-card:nth-child(1){animation-delay:.05s}
+.ranking-podium-card:nth-child(2){animation-delay:.15s}
+.ranking-podium-card:nth-child(3){animation-delay:.25s}
+@keyframes podiumRise{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+.team-preview-item{transition:transform .25s cubic-bezier(.16,.9,.4,1),background .25s ease,border-color .25s ease!important;}
+.team-preview-item:hover{transform:translateX(4px);}
+@media(prefers-reduced-motion: reduce){
+  .news-image,.ranking-podium-card,.team-preview-item{animation:none!important;transition:none!important}
+}
+</style>
