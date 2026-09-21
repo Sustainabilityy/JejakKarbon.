@@ -9060,3 +9060,182 @@ html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; 
   }
 })();
 </script>
+<style id="design-refinement-v3">
+/* ============================================================
+   DESIGN REFINEMENT PASS — replacing generic/flat "template"
+   touches with softer, brand-tinted depth, real micro-interactions,
+   and less bare empty/loading states. Additive only.
+   ============================================================ */
+
+/* 1) Soft, color-tinted ambient shadows instead of flat black —
+   the single biggest "handmade vs generated" tell on a card UI */
+.card,.dashboard-panel,.kpi-main,.impact-action-card,.quick-card,
+.sus-visual-card,.modal-card{
+  box-shadow:0 1px 2px rgba(8,40,28,.04),0 10px 28px -14px rgba(8,60,44,.14),0 24px 48px -28px rgba(8,60,44,.10)!important;
+}
+.card:hover,.dashboard-panel:hover,.quick-card:hover{
+  box-shadow:0 1px 2px rgba(8,40,28,.05),0 16px 36px -14px rgba(8,60,44,.20),0 30px 60px -24px rgba(8,60,44,.16)!important;
+}
+html[data-theme="dark"] .card,html[data-theme="dark"] .dashboard-panel,
+html[data-theme="dark"] .kpi-main,html[data-theme="dark"] .impact-action-card,
+html[data-theme="dark"] .quick-card,html[data-theme="dark"] .sus-visual-card,
+html[data-theme="dark"] .modal-card{
+  box-shadow:0 1px 2px rgba(0,0,0,.3),0 12px 30px -14px rgba(0,0,0,.55),0 26px 50px -28px rgba(0,0,0,.45)!important;
+}
+
+/* 2) Icon chips get a tactile little bounce + tighter ring on hover */
+.ico-box,.impact-action-icon,.team-pulse-icon,.achv-icon{
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease;
+}
+.input-item:hover .ico-box,.impact-action-card:hover .impact-action-icon,
+.dashboard-panel:hover .team-pulse-icon{
+  transform:scale(1.08) rotate(-4deg);
+}
+
+/* 3) Buttons: tactile press feedback everywhere, not just primary */
+.btn,.nature-btn,.shortcut-btn,.panel-link-btn{
+  transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .25s ease,background .25s ease,opacity .18s ease!important;
+}
+.btn:active,.nature-btn:active,.shortcut-btn:active{ transform:scale(.96)!important; }
+.btn.primary:hover,.nature-btn.primary:hover{ box-shadow:0 10px 26px -8px rgba(75,122,91,.45); }
+
+/* 4) Friendlier empty / loading states — icon + softened copy,
+   applied generically to whatever text pattern shows up */
+.dashboard-empty,.ranking-empty{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:28px 16px!important;text-align:center;
+  animation:emptyFadeIn .5s ease both;
+}
+.dashboard-empty::before,.ranking-empty::before{
+  content:"🌱";font-size:26px;opacity:.55;
+  animation:emptyFloat 3s ease-in-out infinite;
+}
+@keyframes emptyFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes emptyFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* Generic "Memuat..." skeleton shimmer instead of flat gray text */
+.jk-skel-loading{
+  position:relative;overflow:hidden;color:transparent!important;
+  background:linear-gradient(90deg,#eef2ef 25%,#e2ebe6 37%,#eef2ef 63%);
+  background-size:400% 100%;border-radius:8px;
+  animation:jkSkelShine 1.4s ease infinite;
+}
+@keyframes jkSkelShine{0%{background-position:100% 0}100%{background-position:0 0}}
+html[data-theme="dark"] .jk-skel-loading{
+  background:linear-gradient(90deg,#1c2921 25%,#26352b 37%,#1c2921 63%)!important;
+  background-size:400% 100%;
+}
+
+/* 5) Numbers that count up get a tiny lift + glow the instant they change */
+.jk-num-pop{animation:jkNumPop .5s cubic-bezier(.34,1.56,.64,1);}
+@keyframes jkNumPop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+
+/* 6) A touch of texture on hero/panel top edges instead of a bare
+   flat gradient bar — subtle diagonal hatch, very low opacity */
+.dashboard-panel::before{background-size:200% 100%!important;animation:panelBarFlow 6s linear infinite;}
+@keyframes panelBarFlow{0%{background-position:0% 0}100%{background-position:200% 0}}
+
+@media(prefers-reduced-motion: reduce){
+  .ico-box,.impact-action-icon,.jk-num-pop,.dashboard-empty::before,
+  .jk-skel-loading,.dashboard-panel::before{animation:none!important}
+}
+</style>
+
+<script id="design-refinement-js-v3">
+(function(){
+  'use strict';
+  /* Animated count-up for the numbers that matter most on Dashboard,
+     purely by observing text changes — never touches existing
+     render functions, so it can't break any calculation. */
+  var TARGETS = ['todayTotal','grandTotal','netEmissionTotal','collectiveTotalDash','dashTeamMembers','categoryDonutTotal'];
+
+  function parseNum(s){
+    if(!s) return 0;
+    var n = parseFloat(String(s).replace(/\./g,'').replace(',','.').replace(/[^\d.\-]/g,''));
+    return isNaN(n) ? 0 : n;
+  }
+  function formatLike(original, value){
+    var hasComma = /,/.test(original);
+    var decimals = hasComma ? (original.split(',')[1]||'').replace(/[^\d]/g,'').length : 0;
+    if(decimals>0){
+      return value.toFixed(decimals).replace('.', ',');
+    }
+    return String(Math.round(value));
+  }
+
+  function animateEl(el, fromV, toV, original){
+    var start = null, dur = 650;
+    function step(ts){
+      if(!start) start = ts;
+      var p = Math.min(1, (ts-start)/dur);
+      var eased = 1 - Math.pow(1-p, 3);
+      var cur = fromV + (toV-fromV)*eased;
+      try{ el.textContent = formatLike(original, cur); }catch(e){}
+      if(p<1) requestAnimationFrame(step);
+      else {
+        try{
+          el.textContent = original;
+          el.classList.add('jk-num-pop');
+          setTimeout(function(){ el.classList.remove('jk-num-pop'); }, 500);
+        }catch(e){}
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  function watch(id){
+    var el = document.getElementById(id);
+    if(!el || el.__jkWatched) return;
+    el.__jkWatched = true;
+    var lastVal = parseNum(el.textContent);
+    var mo = new MutationObserver(function(){
+      try{
+        var original = el.textContent;
+        var newVal = parseNum(original);
+        if(Math.abs(newVal-lastVal) > 0.001){
+          var from = lastVal;
+          lastVal = newVal;
+          animateEl(el, from, newVal, original);
+        }
+      }catch(e){}
+    });
+    mo.observe(el, {childList:true,characterData:true,subtree:true});
+  }
+
+  function init(){ TARGETS.forEach(watch); }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 500); });
+  var origNav = window.navigateToPage;
+  if(typeof origNav === 'function'){
+    window.navigateToPage = function(){
+      var r = origNav.apply(this, arguments);
+      setTimeout(init, 250);
+      return r;
+    };
+  }
+
+  /* Turn any "Memuat..." text node into a shimmering skeleton bar
+     instead of flat gray text — cosmetic only, purely additive. */
+  function skeletonify(){
+    try{
+      document.querySelectorAll('td,div,span').forEach(function(node){
+        if(node.__jkSkelDone) return;
+        var t = (node.textContent||'').trim();
+        if(/^Memuat/i.test(t) && node.children.length===0 && t.length<40){
+          node.__jkSkelDone = true;
+          node.classList.add('jk-skel-loading');
+        }
+      });
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(skeletonify, 400);
+    var pending=false;
+    var obs = new MutationObserver(function(){
+      if(pending) return;
+      pending = true;
+      setTimeout(function(){ pending=false; skeletonify(); }, 600);
+    });
+    obs.observe(document.body, {childList:true, subtree:true});
+  });
+})();
+</script>
