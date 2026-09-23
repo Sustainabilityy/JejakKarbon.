@@ -9192,11 +9192,21 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
 
 /* ---- Interactive chart hover tooltip ---- */
 #trendChart, #weeklyTrendChart{ cursor:crosshair; }
+.jk-hover-dot{
+  position:fixed; left:0; top:0; width:12px; height:12px; margin:-6px 0 0 -6px;
+  border-radius:50%; border:2px solid #fff; opacity:0; pointer-events:none; z-index:99998;
+  transition:left .15s ease, top .15s ease, opacity .2s ease;
+}
+.jk-hover-crosshair{
+  position:fixed; left:0; top:0; width:1px; height:0; opacity:0; pointer-events:none; z-index:99997;
+  background:repeating-linear-gradient(to bottom, rgba(75,122,91,.5) 0 4px, transparent 4px 8px);
+  transition:left .15s ease, height .15s ease, opacity .2s ease;
+}
 .jk-chart-tooltip{
   position:fixed; z-index:99999; pointer-events:none; opacity:0;
   background:var(--esg-dark); color:#fff; padding:10px 13px; border-radius:12px;
   font-size:12px; font-weight:700; box-shadow:0 14px 32px rgba(0,0,0,.25);
-  min-width:130px; transition:opacity .15s ease;
+  min-width:130px; transition:opacity .15s ease, transform .15s ease;
 }
 .jk-chart-tooltip.show{ opacity:1; }
 .jk-chart-tooltip .jk-tt-label{ font-size:10.5px; font-weight:900; letter-spacing:.4px; color:#a9c4a6; margin-bottom:5px; text-transform:uppercase; }
@@ -9894,13 +9904,33 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
   });
 
   /* ============================================================
-     INTERACTIVE HOVER TOOLTIPS for the canvas charts
-     ("Emisi 7 Hari Terakhir" trend chart + the 7-day dual-line
-     Actual vs Target chart). Pure canvas hit-testing against the
-     point caches populated in paintTrendFrame / drawWeeklyDualFrame,
-     with a small GSAP pop-in tooltip + a live crosshair/highlight
-     dot redrawn on top of the chart each time the cursor moves.
+     INTERACTIVE HOVER TOOLTIPS (v2 — DOM-overlay based)
+     for the canvas charts ("Emisi 7 Hari Terakhir" trend chart +
+     the 7-day dual-line Actual vs Target chart).
+
+     v1 tried to redraw the canvas on every mousemove, which could
+     get wiped out by the chart's own periodic re-renders and gave
+     an inconsistent/invisible effect. v2 instead uses small,
+     independent DOM elements (a highlight dot per line + a
+     crosshair) positioned with getBoundingClientRect() and moved
+     with GSAP (CSS-transition fallback if GSAP isn't loaded) —
+     completely decoupled from canvas redraws, so the animation is
+     always visible and never gets erased.
      ============================================================ */
+  function makeHoverDot(color){
+    var d = document.createElement('div');
+    d.className = 'jk-hover-dot';
+    d.style.background = color;
+    d.style.boxShadow = '0 0 0 5px '+color+'2b, 0 4px 10px rgba(0,0,0,.28)';
+    document.body.appendChild(d);
+    return d;
+  }
+  function makeCrosshair(){
+    var c = document.createElement('div');
+    c.className = 'jk-hover-crosshair';
+    document.body.appendChild(c);
+    return c;
+  }
   function ensureTooltipEl(){
     var tip = document.getElementById('jkChartTooltip');
     if(!tip){
@@ -9911,32 +9941,51 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     }
     return tip;
   }
-
   function positionTooltip(tip, clientX, clientY){
-    var pad = 14, tw = tip.offsetWidth || 150, th = tip.offsetHeight || 50;
+    var pad = 16, tw = tip.offsetWidth || 150, th = tip.offsetHeight || 50;
     var left = clientX + pad, top = clientY - th - pad;
     if(left + tw > window.innerWidth - 8) left = clientX - tw - pad;
     if(top < 8) top = clientY + pad;
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
   }
-
+  function moveDot(dot, screenX, screenY, firstShow){
+    if(hasGSAP){
+      gsap.to(dot, { left:screenX, top:screenY, opacity:1, duration: firstShow?0.4:0.15, ease: firstShow?'back.out(2.6)':'power3.out' });
+    } else {
+      dot.style.left = screenX+'px'; dot.style.top = screenY+'px'; dot.style.opacity = 1;
+    }
+  }
+  function hideDot(dot){
+    if(hasGSAP) gsap.to(dot, { opacity:0, duration:0.2 }); else dot.style.opacity = 0;
+  }
+  function moveCrosshair(cross, screenX, top, height){
+    if(hasGSAP){
+      gsap.to(cross, { left:screenX, top:top, height:height, opacity:1, duration:0.2, ease:'power2.out' });
+    } else {
+      cross.style.left=screenX+'px'; cross.style.top=top+'px'; cross.style.height=height+'px'; cross.style.opacity=1;
+    }
+  }
+  function hideCrosshair(cross){
+    if(hasGSAP) gsap.to(cross, { opacity:0, duration:0.2 }); else cross.style.opacity = 0;
+  }
   function showTooltip(tip, html, clientX, clientY, firstShow){
     tip.innerHTML = html;
     positionTooltip(tip, clientX, clientY);
     tip.classList.add('show');
     if(hasGSAP && firstShow){
-      gsap.fromTo(tip, { scale:0.85, opacity:0 }, { scale:1, opacity:1, duration:0.28, ease:'back.out(2.2)' });
+      gsap.fromTo(tip, { scale:0.85, opacity:0 }, { scale:1, opacity:1, duration:0.3, ease:'back.out(2.2)' });
     } else if(hasGSAP){
       gsap.to(tip, { opacity:1, duration:0.12 });
+    } else {
+      tip.style.opacity = 1;
     }
   }
   function hideTooltip(tip){
-    if(!tip.classList.contains('show')) return;
     tip.classList.remove('show');
     if(hasGSAP) gsap.to(tip, { opacity:0, scale:0.9, duration:0.18, ease:'power1.in' });
+    else tip.style.opacity = 0;
   }
-
   function nearestPointIndex(points, mouseX){
     if(!points || !points.length) return -1;
     var bestI=0, bestD=Infinity;
@@ -9946,29 +9995,6 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     }
     return bestI;
   }
-
-  function drawHoverHighlight(canvas, point, color, secondaryPoint, secondaryColor){
-    var ctx = canvas.getContext('2d');
-    var dpr = window.devicePixelRatio || 1;
-    ctx.save();
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    var h = canvas.clientHeight;
-    // crosshair
-    ctx.strokeStyle = 'rgba(75,122,91,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
-    ctx.beginPath(); ctx.moveTo(point.x, 6); ctx.lineTo(point.x, h-6); ctx.stroke();
-    ctx.setLineDash([]);
-    // outer glow ring + dot on primary series
-    ctx.beginPath(); ctx.arc(point.x, point.y, 8, 0, Math.PI*2); ctx.fillStyle = color+'33'; ctx.fill();
-    ctx.beginPath(); ctx.arc(point.x, point.y, 5, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-    if(secondaryPoint){
-      ctx.beginPath(); ctx.arc(point.x, secondaryPoint.y, 8, 0, Math.PI*2); ctx.fillStyle = secondaryColor+'33'; ctx.fill();
-      ctx.beginPath(); ctx.arc(point.x, secondaryPoint.y, 5, 0, Math.PI*2); ctx.fillStyle = secondaryColor; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-    }
-    ctx.restore();
-  }
-
   function fmtKg(v){ return (typeof fmt==='function' ? fmt(v) : (Math.round(v*100)/100).toLocaleString('id-ID')); }
 
   function wireTrendChartHover(){
@@ -9976,31 +10002,36 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     if(!canvas || canvas.dataset.jkHoverWired) return;
     canvas.dataset.jkHoverWired = '1';
     var tip = ensureTooltipEl();
-    var lastIdx = -1;
+    var dot = makeHoverDot('#4b7a5b');
+    var cross = makeCrosshair();
+    var lastIdx = -1, active = false;
 
     function handleMove(clientX, clientY){
+      if(!trendPointsCache.length) return;
       var rect = canvas.getBoundingClientRect();
       var mx = clientX - rect.left;
-      if(!trendPointsCache.length) return;
       var idx = nearestPointIndex(trendPointsCache, mx);
       if(idx < 0) return;
       var p = trendPointsCache[idx];
-      var firstShow = (idx !== lastIdx) || !tip.classList.contains('show');
-      lastIdx = idx;
-      // redraw the base frame then overlay the highlight so the dot tracks the cursor cleanly
-      var subtitleNow = document.getElementById('chartSubtitle') ? document.getElementById('chartSubtitle').textContent : '';
-      paintTrendFrame(canvas, trendPointsCache.map(function(pt){ return { label: pt.label, total: pt.total }; }), subtitleNow);
-      drawHoverHighlight(canvas, trendPointsCache[idx], '#4b7a5b');
+      var firstShow = !active || idx !== lastIdx;
+      active = true; lastIdx = idx;
+      var screenX = rect.left + p.x, screenY = rect.top + p.y;
+      moveDot(dot, screenX, screenY, firstShow);
+      moveCrosshair(cross, screenX, rect.top, rect.height);
       showTooltip(tip,
         '<div class="jk-tt-label">Hari / Bulan ' + p.label + '</div>' +
         '<div class="jk-tt-value"><span class="jk-tt-dot" style="background:#4b7a5b"></span>' + fmtKg(p.total) + ' <small>kgCO₂e</small></div>',
         clientX, clientY, firstShow);
     }
+    function handleLeave(){
+      active = false; lastIdx = -1;
+      hideDot(dot); hideCrosshair(cross); hideTooltip(tip);
+    }
     canvas.addEventListener('mousemove', function(e){ handleMove(e.clientX, e.clientY); });
-    canvas.addEventListener('mouseleave', function(){ lastIdx=-1; hideTooltip(tip); });
+    canvas.addEventListener('mouseleave', handleLeave);
     canvas.addEventListener('touchstart', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
     canvas.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
-    canvas.addEventListener('touchend', function(){ lastIdx=-1; hideTooltip(tip); });
+    canvas.addEventListener('touchend', handleLeave);
   }
 
   function wireWeeklyChartHover(){
@@ -10008,19 +10039,24 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     if(!canvas || canvas.dataset.jkHoverWired) return;
     canvas.dataset.jkHoverWired = '1';
     var tip = ensureTooltipEl();
-    var lastIdx = -1;
+    var dotActual = makeHoverDot('#6c9576');
+    var dotTarget = makeHoverDot('#d977a7');
+    var cross = makeCrosshair();
+    var lastIdx = -1, active = false;
 
     function handleMove(clientX, clientY){
+      if(!weeklyPointsCache.length) return;
       var rect = canvas.getBoundingClientRect();
       var mx = clientX - rect.left;
-      if(!weeklyPointsCache.length) return;
       var idx = nearestPointIndex(weeklyPointsCache, mx);
       if(idx < 0) return;
       var p = weeklyPointsCache[idx];
-      var firstShow = (idx !== lastIdx) || !tip.classList.contains('show');
-      lastIdx = idx;
-      drawWeeklyDualFrame(canvas, weeklyPointsCache.map(function(pt){ return pt.date; }), weeklyPointsCache.map(function(pt){ return pt.actual; }), weeklyPointsCache.map(function(pt){ return pt.target; }));
-      drawHoverHighlight(canvas, {x:p.x,y:p.y}, '#6c9576', {x:p.x,y:p.yTarget}, '#d977a7');
+      var firstShow = !active || idx !== lastIdx;
+      active = true; lastIdx = idx;
+      var screenX = rect.left + p.x;
+      moveDot(dotActual, screenX, rect.top + p.y, firstShow);
+      moveDot(dotTarget, screenX, rect.top + p.yTarget, firstShow);
+      moveCrosshair(cross, screenX, rect.top, rect.height);
       var diff = p.target - p.actual;
       var diffLabel = diff >= 0 ? ('✅ '+fmtKg(Math.abs(diff))+' kg di bawah target') : ('⚠️ '+fmtKg(Math.abs(diff))+' kg di atas target');
       showTooltip(tip,
@@ -10030,14 +10066,18 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
         '<div class="jk-tt-diff">' + diffLabel + '</div>',
         clientX, clientY, firstShow);
     }
+    function handleLeave(){
+      active = false; lastIdx = -1;
+      hideDot(dotActual); hideDot(dotTarget); hideCrosshair(cross); hideTooltip(tip);
+    }
     canvas.addEventListener('mousemove', function(e){ handleMove(e.clientX, e.clientY); });
-    canvas.addEventListener('mouseleave', function(){ lastIdx=-1; hideTooltip(tip); drawWeeklyDualChart(); });
+    canvas.addEventListener('mouseleave', handleLeave);
     canvas.addEventListener('touchstart', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
     canvas.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
-    canvas.addEventListener('touchend', function(){ lastIdx=-1; hideTooltip(tip); drawWeeklyDualChart(); });
+    canvas.addEventListener('touchend', handleLeave);
   }
 
-  // Re-wire on every dashboard render (guarded so listeners attach only once per canvas element).
+  // Re-wire on every dashboard render (guarded via dataset flag so listeners attach only once per canvas element).
   var origRenderDashboardForHover = window.renderDashboard;
   if(typeof origRenderDashboardForHover === 'function'){
     window.renderDashboard = function(){
