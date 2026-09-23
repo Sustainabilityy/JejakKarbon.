@@ -4851,7 +4851,18 @@ body.jk-intro-lock{overflow:hidden!important;}
         </div>  
       </div>  
 
-      
+      <div class="dashboard-smart-grid">
+        <section class="daily-tip-card" aria-live="polite">
+          <div class="smart-card-icon" id="dailyTipIcon">🌱</div>
+          <div class="smart-card-copy">
+            <span class="smart-kicker">TIP HARI INI</span>
+            <h3 id="dailyTipTitle">Menunggu pola emisi Anda</h3>
+            <p id="dailyTipText">Catat beberapa aktivitas untuk mendapatkan rekomendasi keberlanjutan yang lebih personal.</p>
+            <small id="dailyTipMeta">Rekomendasi akan mengikuti aktivitas dengan kontribusi emisi terbesar.</small>
+          </div>
+        </section>
+      </div>
+
       <div class="dashboard-insights-grid">
         <section class="dashboard-panel team-pulse-panel">
           <div class="dashboard-panel-head leaderboard-head">
@@ -4893,6 +4904,11 @@ body.jk-intro-lock{overflow:hidden!important;}
               <button type="button" id="modeWeekBtn" class="trend-mode" onclick="setTrendMode('week')">Mingguan</button>
               <button type="button" id="modeMonthBtn" class="trend-mode" onclick="setTrendMode('month')">Bulanan</button>
             </div>
+            <label class="trend-target-control" title="Target emisi pribadi harian untuk pembanding pada grafik">
+              <span>Target pribadi</span>
+              <input id="dailyPersonalTargetInput" type="number" min="0" step="0.01" value="5" inputmode="decimal" aria-label="Target emisi pribadi harian dalam kgCO₂e">
+              <small>kg/hari</small>
+            </label>
           </div>
           <div id="trendFilterBox" class="trend-filter-compact">
             <div>
@@ -4910,7 +4926,8 @@ body.jk-intro-lock{overflow:hidden!important;}
             </div>
           </div>
           <div id="chartSubtitle" class="chart-subtitle"></div>
-          <canvas class="chart" id="trendChart"></canvas>
+          <div id="rechartsTrendRoot" class="chart recharts-trend-root" aria-label="Grafik emisi dan target harian pribadi"></div>
+          <canvas class="chart" id="trendChart" aria-hidden="true" style="display:none!important;"></canvas>
         </section>
 
         <section class="dashboard-panel distribution-panel">
@@ -5022,6 +5039,47 @@ body.jk-intro-lock{overflow:hidden!important;}
           </div>
         </div>
         <div class="team-hero-dots" id="teamHeroDots" aria-hidden="true"></div>
+      </div>
+
+      <div class="team-command-strip">
+        <section class="team-target-card" aria-live="polite">
+          <div class="team-target-head">
+            <div>
+              <span class="team-target-kicker">TEAM TARGET</span>
+              <h3>Target pengurangan emisi bulanan</h3>
+              <p>Progress dibandingkan emisi bulan sebelumnya pada filter departemen yang aktif.</p>
+            </div>
+            <div class="team-target-input-wrap">
+              <label for="teamMonthlyReductionGoalInput">Target</label>
+              <div class="team-target-input">
+                <input id="teamMonthlyReductionGoalInput" type="number" min="1" max="100" step="1" value="10" inputmode="numeric" aria-label="Target pengurangan emisi bulanan dalam persen">
+                <span>%</span>
+              </div>
+            </div>
+          </div>
+          <div class="team-target-progress-track"><span id="teamTargetProgressBar"></span></div>
+          <div class="team-target-progress-meta">
+            <strong id="teamTargetProgressText">0%</strong>
+            <span id="teamTargetStatus">Menunggu baseline bulan sebelumnya…</span>
+          </div>
+          <div class="team-target-foot">
+            <span id="teamTargetBaselineText">Baseline: —</span>
+            <span id="teamTargetCurrentText">Bulan ini: —</span>
+          </div>
+        </section>
+
+        <section class="team-export-card">
+          <div>
+            <span class="team-target-kicker">TEAM REPORT</span>
+            <h3>Export laporan 30 hari</h3>
+            <p>Ringkasan individual vs shared emission berdasarkan tanggal akhir yang dipilih.</p>
+          </div>
+          <div class="team-export-controls">
+            <label for="teamExportEndDate">Tanggal akhir</label>
+            <input id="teamExportEndDate" type="date" aria-label="Tanggal akhir periode export 30 hari">
+            <button type="button" class="btn primary team-export-btn" onclick="exportTeamDashboardPDF()">📄 Export PDF 30 Hari</button>
+          </div>
+        </section>
       </div>
 
       <div class="team-grid-top">
@@ -5490,7 +5548,14 @@ body.jk-intro-lock{overflow:hidden!important;}
   <button data-page="profile"><span class="ico">👤</span>Profil</button>  
 </div>  
 
-<div class="toast" id="toast">Notifikasi muncul di sini</div>  
+<div class="toast" id="toast">Notifikasi muncul di sini</div>
+<div class="team-target-toast" id="teamTargetToast" role="status" aria-live="polite" aria-atomic="true">
+  <div class="team-target-toast-icon" id="teamTargetToastIcon">🎯</div>
+  <div class="team-target-toast-copy">
+    <b id="teamTargetToastTitle">Team Target</b>
+    <span id="teamTargetToastText">Progress target tim berubah.</span>
+  </div>
+</div>  
 
 <script>  
 const FACTOR_VERSION = 'GGP-Carbon-Factor-R3-2026';  
@@ -8774,8 +8839,10 @@ document.addEventListener('DOMContentLoaded',function(){
 })();
 </script>
 
-</body>  
-</html>
+
+
+  
+
 <style id="v16-team-hero-input-fix">
 .team-hero-photo-label{display:none!important}
 .team-hero-dots{z-index:5}
@@ -9060,3 +9127,750 @@ html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; 
   }
 })();
 </script>
+
+<style id="v16-team-hero-input-fix">
+.team-hero-photo-label{display:none!important}
+.team-hero-dots{z-index:5}
+#pane2 input[type="number"]:invalid{border-color:#b54a3f!important;background:#fff7f7!important}
+#pane2 input[type="number"]:focus{border-color:var(--esg-primary)}
+</style>
+<style id="dark-mode-final-contrast-lockdown-v4">
+/* ============================================================
+   DARK MODE — FINAL CONTRAST LOCKDOWN
+   Placed last on purpose so it wins any tie with earlier patches.
+   Instead of chasing individual hex values (fragile — misses
+   colors set via CSS variables or by JavaScript at runtime),
+   this forces every plain text element inside a surface that
+   flips to a dark background to use the light "ink" color.
+   Chips/badges/tabs that deliberately keep their OWN light
+   background are excluded so they don't become light-on-light.
+   ============================================================ */
+html[data-theme="dark"] :is(
+  .card,.kpi-box,.quick-card,.input-item,.table-wrap,
+  .modal-card,.modal-overlay,.team-card-white,.rank-table-wrapper,
+  .chat-layout,.chat-tab-header,.chat-room-item,.chat-input-wrapper,
+  .lb-item,.shortcut-btn,.active-reply-banner,.emoji-picker-panel,
+  .avatar-preview,.dashboard-filter-card,.team-pulse-summary,
+  .panel-status,.sidebar,.mobile-header,.mobile-nav,.topline
+) *:not(:is(
+  .rank-badge,.rank-badge *,
+  .badge-status.top,.badge-status.top *,
+  .badge-status.runner,.badge-status.runner *,
+  .badge-status.third,.badge-status.third *,
+  .rank-tab,.rank-tab *,
+  .team-header-pill,.team-header-pill *,
+  .hero-pill,.hero-pill *,
+  .section-kicker,.section-kicker *,
+  .premium-kicker,.premium-kicker *,
+  .nav button.active,.nav button.active *,
+  .btn.primary,.btn.primary *,
+  .nature-btn.primary,.nature-btn.primary *,
+  .chat-message-row.me .chat-bubble,.chat-message-row.me .chat-bubble *
+)){
+  color: var(--gk-ink) !important;
+}
+/* Secondary/help text a shade softer, still comfortably readable */
+html[data-theme="dark"] :is(.card,.modal-card,.table-wrap) small:not(:is(.rank-badge *,.badge-status.top *,.badge-status.runner *,.badge-status.third *)){
+  color: var(--gk-muted) !important;
+}
+/* Native <select>/<option> popovers — many browsers render these with
+   their own white surface no matter what the page background is, so
+   they need an explicit dark surface + light text pairing too. */
+html[data-theme="dark"] select,
+html[data-theme="dark"] option{
+  background: var(--gk-card) !important;
+  color: var(--gk-ink) !important;
+}
+</style>
+<style id="dark-mode-universal-lockdown-v5">
+/* ============================================================
+   DARK MODE — UNIVERSAL LOCKDOWN (v5, final word on this)
+   Scoped to the whole active page rather than a container list,
+   so nothing dynamically rendered later can slip through. Only
+   badges/pills/chips/tabs/buttons that intentionally keep their
+   own colored background are excluded (forcing light text on
+   THEIR light chip would break them the other way around).
+   ============================================================ */
+html[data-theme="dark"] .page.active *:not(:is(
+  [class*="badge"],[class*="badge"] *,
+  [class*="pill"],[class*="pill"] *,
+  [class*="chip"],[class*="chip"] *,
+  [class*="kicker"],[class*="kicker"] *,
+  .rank-tab,.rank-tab *,
+  .nav button.active,.nav button.active *,
+  .btn.primary,.btn.primary *,
+  .nature-btn.primary,.nature-btn.primary *,
+  .chat-message-row.me .chat-bubble,.chat-message-row.me .chat-bubble *
+)){
+  color: var(--gk-ink) !important;
+}
+html[data-theme="dark"] .modal-overlay *:not(:is([class*="badge"],[class*="badge"] *,[class*="pill"],[class*="pill"] *,.btn.primary,.btn.primary *)){
+  color: var(--gk-ink) !important;
+}
+/* Icons/SVGs that inherit color via currentColor still read fine on
+   a dark surface since gk-ink is light — no separate rule needed. */
+</style>
+<style id="dark-mode-gradient-text-fix-v6">
+/* ============================================================
+   DARK MODE — GRADIENT-TEXT FIX
+   These headings render their visible color via a background
+   gradient clipped to the text shape (color:transparent), which
+   a plain `color` override can never reach — that's why they kept
+   looking dim/muddy in dark mode no matter what else was fixed.
+   In dark mode we simply drop the clip and show solid, guaranteed
+   -readable ink text instead.
+   ============================================================ */
+html[data-theme="dark"] #dashboard .donut-center strong,
+html[data-theme="dark"] #dashboard .break-row em,
+html[data-theme="dark"] #dashboard .kpi-box strong{
+  background:none!important;
+  -webkit-background-clip:initial!important;
+  background-clip:initial!important;
+  -webkit-text-fill-color:var(--gk-ink)!important;
+  color:var(--gk-ink)!important;
+}
+</style>
+<style id="dark-mode-id-scoped-bg-fix-v7">
+/* ============================================================
+   DARK MODE — ID-SCOPED BACKGROUND OVERRIDES
+   Root cause of the screenshots: several page-specific rules like
+   "#input .input-item{background:#fff!important}" were written
+   BEFORE dark mode existed. An ID selector always beats a plain
+   class selector, so these kept forcing a white/cream card no
+   matter what theme was active — while the text on top of them
+   correctly switched to a light color, leaving light-on-white,
+   completely unreadable text. Each one below is re-pointed to a
+   dark surface, matching (and beating) the exact same selector.
+   ============================================================ */
+html[data-theme="dark"] #team_dashboard .team-card-white,
+html[data-theme="dark"] #ranking_data .rank-table-wrapper,
+html[data-theme="dark"] #input .card,
+html[data-theme="dark"] #contrib .card,
+html[data-theme="dark"] #profile .card{
+  background:var(--gk-card)!important;
+}
+html[data-theme="dark"] #dashboard #globalFilterInputsContainer{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #dashboard .dashboard-filter-card{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #ranking_data .rank-table th{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #ranking_data .rank-table tbody tr:hover{ background:rgba(255,255,255,.06)!important; }
+html[data-theme="dark"] #input .input-shortcut-tabs{ background:rgba(255,255,255,.05)!important; }
+html[data-theme="dark"] #input .shortcut-btn{ background:var(--gk-card)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #input .input-item{ background:linear-gradient(180deg,#202e26,#1c2921)!important; }
+html[data-theme="dark"] #contrib .input-field input,
+html[data-theme="dark"] #contrib .input-field select{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #contrib .contrib-info-modern{ background:linear-gradient(135deg,#1f2c24,#202e26)!important; }
+html[data-theme="dark"] #chat .chat-sidebar{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #chat .chat-main-pane{ background:var(--gk-paper)!important; }
+html[data-theme="dark"] #chat .chat-input-bar{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #profile .photo-uploader{ background:linear-gradient(135deg,#1f2c24,#202e26)!important; }
+html[data-theme="dark"] #contrib .impact-action-card{ background:var(--gk-card)!important; color:var(--gk-ink)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #contrib .impact-action-card.active{ background:linear-gradient(145deg,#202e26,#1c2921)!important; border-color:rgba(0,230,160,.35)!important; }
+html[data-theme="dark"] #contrib .impact-action-icon{ background:rgba(0,230,160,.14)!important; }
+html[data-theme="dark"] #contrib .impact-action-arrow{ background:rgba(255,255,255,.08)!important; color:var(--gk-ink)!important; }
+html[data-theme="dark"] #contrib .impact-action-text small{ color:var(--gk-muted)!important; }
+</style>
+<style id="dark-mode-dashboard-panel-fix-v8">
+/* ============================================================
+   DARK MODE — DASHBOARD ANALYTICS PANELS (Leaderboard, Carbon
+   Trend, Emission Mix, Emission Detail)
+   These use a completely different container class
+   (.dashboard-panel) that was never given a dark-mode background
+   at all — so every number/name inside kept getting forced to a
+   light color (correctly, for dark mode) while sitting on a card
+   that always stayed white. Fixing the container here is what
+   makes all the text already-forced-light finally make sense.
+   ============================================================ */
+html[data-theme="dark"] #dashboard .dashboard-panel{ background:var(--gk-card)!important; }
+html[data-theme="dark"] #dashboard .trend-mode-pills{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .trend-filter-compact{ background:rgba(255,255,255,.05)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .trend-filter-compact select{ background:var(--gk-card)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .dashboard-breakdown-split>div{ background:rgba(255,255,255,.05)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] #dashboard .panel-link-btn{ background:rgba(0,230,160,.12)!important; border-color:rgba(0,230,160,.22)!important; color:#8ff3cf!important; }
+html[data-theme="dark"] #dashboard .leaderboard-controls select{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; color:var(--gk-ink)!important; }
+html[data-theme="dark"] #dashboard .section-kicker{ color:#5eead4!important; }
+html[data-theme="dark"] #dashboard .category-legend b,
+html[data-theme="dark"] #dashboard .category-legend strong{ color:var(--gk-ink)!important; }
+
+/* ---- Chat wallpaper: belt-and-suspenders in case the doodle PNG
+   itself carries an opaque light backdrop ---- */
+html[data-theme="dark"] #chat .chat-messages-box{
+  background-color:var(--gk-paper)!important;
+}
+</style>
+<style id="achievement-badges-v1">
+/* ============================================================
+   ACHIEVEMENT BADGES — Profile page
+   ============================================================ */
+.achv-panel{
+  margin:22px 0 6px;padding:20px;border-radius:18px;
+  background:linear-gradient(135deg,#f7fbf9,#f1f7f3);
+  border:1px solid #e0ede6;
+}
+.achv-panel-head{display:flex;flex-direction:column;gap:2px;margin-bottom:14px}
+.achv-panel-head h4{margin:2px 0 0;font-size:16px;font-weight:800}
+.achv-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;
+}
+.achv-badge{
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  padding:14px 8px;border-radius:16px;background:#fff;border:1px solid #e7eee9;
+  position:relative;overflow:hidden;transition:transform .3s cubic-bezier(.16,.9,.4,1),box-shadow .3s ease;
+  cursor:default;
+}
+.achv-badge .achv-icon{
+  width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;
+  background:linear-gradient(135deg,#e9f7f0,#dcf4e8);
+  filter:grayscale(1) opacity(.45);
+  transition:filter .4s ease,transform .4s ease;
+}
+.achv-badge .achv-label{font-size:10.5px;font-weight:800;line-height:1.25;color:var(--text-muted)}
+.achv-badge .achv-sub{font-size:8.5px;color:#9aa39d;font-weight:600}
+.achv-badge.unlocked{border-color:rgba(0,180,120,.35);box-shadow:0 10px 24px -14px rgba(6,88,64,.35);}
+.achv-badge.unlocked .achv-icon{
+  filter:none;background:linear-gradient(135deg,#a7f3d0,#5eead4);
+  animation:achvPop .6s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 0 0 6px rgba(94,234,212,.16);
+}
+.achv-badge.unlocked .achv-label{color:var(--esg-dark)}
+.achv-badge.unlocked::before{
+  content:"✓";position:absolute;top:6px;right:8px;font-size:10px;font-weight:900;
+  color:#0a8f5c;background:#fff;width:16px;height:16px;border-radius:50%;
+  display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.achv-badge:hover{transform:translateY(-4px)}
+@keyframes achvPop{0%{transform:scale(.4) rotate(-15deg)}60%{transform:scale(1.15) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+
+html[data-theme="dark"] .achv-panel{
+  background:linear-gradient(135deg,#1c2921,#202e26)!important;border-color:var(--gk-line)!important;
+}
+html[data-theme="dark"] .achv-badge{ background:var(--gk-card)!important;border-color:var(--gk-line)!important; }
+html[data-theme="dark"] .achv-badge .achv-icon{ background:rgba(255,255,255,.08)!important; }
+html[data-theme="dark"] .achv-badge.unlocked .achv-icon{ background:linear-gradient(135deg,#a7f3d0,#5eead4)!important; }
+html[data-theme="dark"] .achv-badge .achv-label{ color:var(--gk-muted)!important; }
+html[data-theme="dark"] .achv-badge.unlocked .achv-label{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; }
+
+@media(prefers-reduced-motion: reduce){ .achv-badge.unlocked .achv-icon{animation:none!important} }
+</style>
+
+<script id="achievement-badges-js-v1">
+(function(){
+  'use strict';
+  /* Purely additive & defensive: never throws, never touches any
+     existing variable/function — just reads what's already on the
+     page/localStorage to decide which badges light up. */
+  var DEFS = [
+    {id:'active',icon:'🌱',label:'Akun Aktif',sub:'Bergabung',always:true},
+    {id:'contrib',icon:'🌳',label:'Kontributor',sub:'1+ aksi',check:function(){
+      var box=document.getElementById('contribHistoryBox');
+      return !!(box && box.children && box.children.length>0 && !/belum ada/i.test(box.textContent||''));
+    }},
+    {id:'team',icon:'👥',label:'Tim Aktif',sub:'Kolaborasi',check:function(){
+      var el=document.getElementById('dashTeamMembers');
+      return !!(el && parseInt(el.textContent||'0',10)>0);
+    }},
+    {id:'lowcarbon',icon:'🍃',label:'Rendah Emisi',sub:'Netto minim',check:function(){
+      var el=document.getElementById('categoryDonutTotal');
+      if(!el) return false;
+      var v=parseFloat((el.textContent||'0').replace(',','.'));
+      return !isNaN(v) && v>=0 && v<5;
+    }},
+    {id:'streak',icon:'🔥',label:'Konsisten',sub:'Rutin catat',check:function(){
+      try{
+        var raw=localStorage.getItem('JejakKarbonKu_LEADERBOARD_V20_FAST');
+        return !!raw;
+      }catch(e){ return false; }
+    }},
+    {id:'installer',icon:'📲',label:'Selalu Siap',sub:'App terpasang',check:function(){
+      try{ return window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; }
+    }}
+  ];
+
+  function renderBadges(){
+    var grid = document.getElementById('achvGrid');
+    if(!grid) return;
+    try{
+      grid.innerHTML = DEFS.map(function(d){
+        var unlocked = d.always || (typeof d.check === 'function' && (function(){ try{ return !!d.check(); }catch(e){ return false; } })());
+        return '<div class="achv-badge'+(unlocked?' unlocked':'')+'" title="'+d.label+'">'+
+          '<div class="achv-icon">'+d.icon+'</div>'+
+          '<div class="achv-label">'+d.label+'</div>'+
+          '<div class="achv-sub">'+(unlocked?d.sub:'Terkunci')+'</div>'+
+        '</div>';
+      }).join('');
+    }catch(e){ /* fail silent, never break the profile page */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(renderBadges, 400); });
+  var origNav = window.navigateToPage;
+  if(typeof origNav === 'function'){
+    window.navigateToPage = function(page){
+      var r = origNav.apply(this, arguments);
+      if(page === 'profile') setTimeout(renderBadges, 250);
+      return r;
+    };
+  }
+})();
+</script>
+
+<style id="jk-v27-professional-analytics">
+/* ============================================================
+   V27 — PROFESSIONAL ANALYTICS + ACCESSIBLE DARK MODE
+   This block intentionally comes last so it wins against older
+   hard-coded inline/light-theme rules without removing features.
+   ============================================================ */
+:root{
+  --jk-card:#ffffff;--jk-card-soft:#f6faf8;--jk-border:#dfeae4;--jk-ink:#163228;
+  --jk-muted:#667a72;--jk-accent:#0f8f63;--jk-accent-2:#42c99a;
+}
+.recharts-trend-root{
+  min-height:270px!important;height:270px!important;width:100%!important;padding:2px 8px 12px!important;
+}
+.recharts-trend-root .recharts-wrapper,.recharts-trend-root .recharts-surface{overflow:visible}
+.trend-mini-toolbar{align-items:center;justify-content:space-between!important;gap:10px!important;flex-wrap:wrap}
+.trend-target-control{
+  display:flex;align-items:center;gap:5px;padding:4px 7px;border:1px solid #e2ebe7;border-radius:10px;
+  background:#f6faf8;color:#5a7067;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.4px;
+}
+.trend-target-control span{white-space:nowrap}
+.trend-target-control input{
+  width:60px;padding:5px 6px;border-radius:7px;border:1px solid #d7e5df;background:#fff;
+  color:#17362b;font-size:10px;font-weight:900;outline:none;text-align:right;
+}
+.trend-target-control small{font-size:7px;color:#81928b;font-weight:800;text-transform:none;letter-spacing:0}
+.dashboard-smart-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0 0 24px}
+.daily-tip-card{
+  display:flex;align-items:center;gap:15px;padding:18px 20px;border:1px solid #dfeae4;border-radius:20px;
+  background:linear-gradient(120deg,#f3fbf7,#edf7f2 62%,#f9fcfa);box-shadow:0 10px 28px rgba(11,77,54,.07);
+}
+.smart-card-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:15px;background:linear-gradient(135deg,#d9f7e9,#b8eed8);font-size:25px;box-shadow:0 8px 20px rgba(15,143,99,.14);flex:0 0 auto}
+.smart-card-copy{min-width:0}.smart-kicker,.team-target-kicker{font-size:8px;letter-spacing:1.1px;font-weight:900;color:#0b825b;text-transform:uppercase}
+.daily-tip-card h3{margin:4px 0 3px;font-size:16px;color:#17362b}.daily-tip-card p{margin:0;color:#5f736b;font-size:11.5px;line-height:1.55}.daily-tip-card small{display:block;margin-top:6px;color:#879890;font-size:9.5px;font-weight:700}
+.team-command-strip{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr);gap:16px;margin:0 0 22px}
+.team-target-card,.team-export-card{border:1px solid #dfeae4;border-radius:20px;padding:20px;background:linear-gradient(145deg,#ffffff,#f5faf7);box-shadow:0 10px 28px rgba(11,77,54,.06)}
+.team-target-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.team-target-card h3,.team-export-card h3{margin:5px 0 4px;font-size:16px;color:#17362b}.team-target-card p,.team-export-card p{margin:0;color:#71837c;font-size:10.5px;line-height:1.5}
+.team-target-input-wrap{display:flex;flex-direction:column;gap:5px;align-items:flex-end}.team-target-input-wrap label,.team-export-controls label{font-size:8px;font-weight:900;color:#81918b;text-transform:uppercase;letter-spacing:.7px}.team-target-input{display:flex;align-items:center;gap:4px;padding:6px 8px;border:1px solid #dce8e2;border-radius:10px;background:#fff}.team-target-input input{width:58px;border:0;outline:0;background:transparent;color:#17362b;font-weight:900;text-align:right;font-size:14px}.team-target-input span{font-weight:900;color:#4e6a60;font-size:10px}.team-target-progress-track{height:12px;background:#eaf1ed;border-radius:999px;overflow:hidden;margin:18px 0 9px}.team-target-progress-track span{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,#0d8b60,#47c995);box-shadow:0 3px 10px rgba(15,143,99,.22)}.team-target-progress-meta,.team-target-foot{display:flex;justify-content:space-between;gap:12px;align-items:center}.team-target-progress-meta strong{font-size:20px;color:#0a6f4f}.team-target-progress-meta span,.team-target-foot span{font-size:9.5px;color:#75877f;font-weight:700}.team-target-foot{margin-top:10px;padding-top:9px;border-top:1px dashed #dfeae4}.team-target-foot span{font-size:8.5px}
+.team-export-card{display:flex;flex-direction:column;justify-content:space-between;gap:16px}.team-export-controls{display:grid;grid-template-columns:1fr;gap:7px}.team-export-controls input{width:100%;padding:10px 11px;border:1px solid #dce8e2;border-radius:10px;background:#fff;color:#17362b;font-size:11px;font-weight:800}.team-export-btn{width:100%!important;padding:11px 14px!important;font-size:11px!important}
+.team-target-toast{position:fixed;right:24px;top:24px;z-index:100000;display:flex;align-items:center;gap:11px;min-width:300px;max-width:390px;padding:13px 15px;border-radius:16px;background:rgba(17,31,25,.96);color:#fff;box-shadow:0 20px 45px rgba(0,0,0,.3);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.11);opacity:0;pointer-events:none;transform:translateY(-14px) scale(.98)}.team-target-toast.show{pointer-events:auto}.team-target-toast-icon{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:rgba(71,201,149,.16);font-size:18px;flex:0 0 auto}.team-target-toast-copy b{display:block;font-size:12px;font-weight:900}.team-target-toast-copy span{display:block;margin-top:2px;font-size:10px;line-height:1.45;color:rgba(255,255,255,.72)}
+/* Team Pulse + Category Breakdown accessible light theme */
+#dashboard .team-pulse-summary{color:#17362b}.team-pulse-summary strong{color:#0a6f4f!important}.team-pulse-summary span{color:#5e746b!important}.category-legend b{color:#49635a!important}.category-legend strong{color:#17362b!important}
+#team_dashboard .team-card-white [style*="background:white"],#team_dashboard .team-card-white [style*="background: white"],#team_dashboard .team-card-white [style*="background:#fff"],#team_dashboard .team-card-white [style*="background: #fff"]{background:#fff!important}
+
+html[data-theme="dark"]{
+  --jk-card:#192820;--jk-card-soft:#202f27;--jk-border:rgba(230,247,239,.12);--jk-ink:#effaf5;--jk-muted:#aebfb7;
+}
+html[data-theme="dark"] body,html[data-theme="dark"] .main{color:var(--jk-ink)!important}
+html[data-theme="dark"] .sidebar,html[data-theme="dark"] .mobile-header,html[data-theme="dark"] .mobile-nav{background:#111c17!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] .page .card,html[data-theme="dark"] .card,html[data-theme="dark"] .kpi-box,html[data-theme="dark"] .team-card-white,html[data-theme="dark"] .rank-table-wrapper,html[data-theme="dark"] .dashboard-panel,html[data-theme="dark"] .table-wrap,html[data-theme="dark"] .input-item,html[data-theme="dark"] .chat-layout,html[data-theme="dark"] .team-target-card,html[data-theme="dark"] .team-export-card{background:var(--jk-card)!important;border-color:var(--jk-border)!important;color:var(--jk-ink)!important}
+html[data-theme="dark"] .topline h1,html[data-theme="dark"] .card h3,html[data-theme="dark"] .team-card-white h3,html[data-theme="dark"] .dashboard-panel h3,html[data-theme="dark"] .team-target-card h3,html[data-theme="dark"] .team-export-card h3{color:#effaf5!important}
+html[data-theme="dark"] .topline p,html[data-theme="dark"] .team-target-card p,html[data-theme="dark"] .team-export-card p,html[data-theme="dark"] .daily-tip-card p,html[data-theme="dark"] .daily-tip-card small{color:#a9bcb4!important}
+html[data-theme="dark"] .team-command-strip .team-target-kicker,html[data-theme="dark"] .smart-kicker{color:#67e0b2!important}
+html[data-theme="dark"] .daily-tip-card{background:linear-gradient(120deg,#182b23,#1c3329)!important;border-color:var(--jk-border)!important;box-shadow:0 16px 35px rgba(0,0,0,.18)}
+html[data-theme="dark"] .daily-tip-card h3{color:#effaf5!important}.daily-tip-card .smart-card-icon{box-shadow:none}
+html[data-theme="dark"] .trend-target-control,html[data-theme="dark"] .trend-filter-compact,html[data-theme="dark"] .trend-mode-pills{background:#202f27!important;border-color:var(--jk-border)!important;color:#c3d3cd!important}
+html[data-theme="dark"] .trend-target-control input,html[data-theme="dark"] .trend-filter-compact select,html[data-theme="dark"] .team-target-input,html[data-theme="dark"] .team-target-input input,html[data-theme="dark"] .team-export-controls input{background:#25372e!important;color:#effaf5!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] .trend-target-control span,html[data-theme="dark"] .trend-target-control small,html[data-theme="dark"] .trend-filter-compact label,html[data-theme="dark"] .team-target-input-wrap label,html[data-theme="dark"] .team-export-controls label{color:#9fb2aa!important}
+html[data-theme="dark"] .team-target-progress-track{background:#2a3a32!important}
+html[data-theme="dark"] .team-target-progress-meta strong{color:#67e0b2!important}.team-target-progress-meta span,.team-target-foot span{color:#a6b9b1!important}
+html[data-theme="dark"] .team-pulse-summary{background:linear-gradient(135deg,#172c23,#1d352a)!important;border-color:rgba(103,224,178,.14)!important}
+html[data-theme="dark"] .team-pulse-summary strong{color:#effff8!important}.team-pulse-summary span{color:#b5c8c0!important}.category-legend b{color:#c7d8d1!important}.category-legend strong{color:#effaf5!important}.category-row{color:#d4e1dc!important}
+html[data-theme="dark"] #dashboard .dashboard-empty,html[data-theme="dark"] #dashboard .detail-switch,html[data-theme="dark"] #dashboard .chart-subtitle{color:#9fb2aa!important}
+html[data-theme="dark"] #dashboard .dashboard-breakdown-split>div{background:#1b2a23!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] #dashboard .dashboard-breakdown-split h4{color:#cfe0d8!important}
+html[data-theme="dark"] .team-preview-item{background:#1b2a23!important;border-color:var(--jk-border)!important}.team-preview-name{color:#dce9e4!important}.team-preview-value small{color:#94a79e!important}.team-preview-rank{color:#67e0b2!important}
+html[data-theme="dark"] #team_dashboard .team-card-white [style*="background:white"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="background: white"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="background:#fff"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="background: #fff"]{background:#202f27!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] #team_dashboard .team-card-white [style*="color:var(--esg-dark)"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="color: var(--esg-dark)"]{color:#effaf5!important}
+html[data-theme="dark"] #team_dashboard .team-card-white [style*="color:var(--text-muted)"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="color: var(--text-muted)"]{color:#a9bcb4!important}
+html[data-theme="dark"] #team_dashboard .team-card-white [style*="border:1px solid #e4decc"],html[data-theme="dark"] #team_dashboard .team-card-white [style*="border: 1px solid #e4decc"]{border-color:var(--jk-border)!important}
+html[data-theme="dark"] .rank-table th,html[data-theme="dark"] th{background:#1e2e26!important;color:#aec1b9!important}.rank-table td,html[data-theme="dark"] table td{color:#d8e5df!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] .rank-table tbody tr:hover{background:#23342b!important}
+html[data-theme="dark"] .rank-table td [style*="color:#334155"],html[data-theme="dark"] .rank-table td [style*="color: #334155"],html[data-theme="dark"] .rank-table td [style*="color:#5b5648"],html[data-theme="dark"] .rank-table td [style*="color: #5b5648"],html[data-theme="dark"] .rank-table td [style*="color:#211e17"],html[data-theme="dark"] .rank-table td [style*="color: #211e17"]{color:#d8e5df!important}
+html[data-theme="dark"] .badge-status.normal{background:#25352d!important;color:#c8d8d1!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] .btn.outline{background:#1d2d25!important;color:#eaf6f0!important;border-color:var(--jk-border)!important}
+html[data-theme="dark"] .modal-card{background:#1b2a23!important;color:#effaf5!important;border-color:var(--jk-border)!important}.modal-card p,.modal-card label{color:#b1c2bb!important}
+html[data-theme="dark"] .lb-item{background:#1b2a23!important;border-color:var(--jk-border)!important}.lb-name,.lb-rank{color:#effaf5!important}.lb-score small{color:#a7bab1!important}
+html[data-theme="dark"] .chat-tab-header,html[data-theme="dark"] .chat-room-item,html[data-theme="dark"] .chat-search-box,html[data-theme="dark"] .chat-input-wrapper{background:#1a2922!important;color:#effaf5!important;border-color:var(--jk-border)!important}.chat-room-title{color:#effaf5!important}.chat-room-sub{color:#a9bcb4!important}
+html[data-theme="dark"] .chat-main-pane{background:#111c17!important}.chat-sender-name{color:#c8d8d1!important;background:rgba(17,28,23,.75)!important}
+html[data-theme="dark"] .toast{background:#f0faf6!important;color:#13261f!important}.team-target-toast{background:rgba(8,17,13,.98)!important;border-color:rgba(103,224,178,.18)!important}
+html[data-theme="dark"] .recharts-cartesian-grid line{stroke:rgba(215,240,229,.12)!important}.recharts-text{fill:#6f8279}.recharts-legend-item-text{color:#466156!important}
+html[data-theme="dark"] .recharts-text{fill:#afc2b9!important}.recharts-tooltip-wrapper .recharts-default-tooltip{border-radius:12px!important;border:1px solid #dfe9e4!important;background:#fff!important;box-shadow:0 12px 28px rgba(0,0,0,.16)!important}.recharts-tooltip-label,.recharts-default-tooltip{color:#1c3329!important}
+html[data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip{border-color:var(--jk-border)!important;background:#182720!important}.recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-label,html[data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-item-list{color:#17362b!important}.recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-item{color:#17362b!important}.recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-item-name{color:#17362b!important}
+/* Final global dark-mode contrast safety net: neutralize remaining inline light-theme declarations. */
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{
+  background:#1c2b24!important;color:#effaf5!important;border-color:rgba(230,247,239,.14)!important;
+}
+html[data-theme="dark"] option{background:#1c2b24!important;color:#effaf5!important}
+html[data-theme="dark"] .rank-tab{background:#1c2b24!important;color:#c9d9d2!important;border-color:rgba(230,247,239,.14)!important}
+html[data-theme="dark"] .rank-tab:hover{background:#25372d!important;color:#effaf5!important}
+html[data-theme="dark"] .rank-tab.active{background:#234637!important;color:#9bf1cb!important;border-color:#4ed8a3!important}
+html[data-theme="dark"] .trend-mode{background:#1c2b24!important;color:#c9d9d2!important;border-color:rgba(230,247,239,.14)!important}
+html[data-theme="dark"] .trend-mode.active{background:#126c50!important;color:#fff!important;border-color:#35c992!important}
+html[data-theme="dark"] .trend-filter-compact label,html[data-theme="dark"] .dashboard-filter-card label{color:#aebfb7!important}
+html[data-theme="dark"] .page [style*="color:#211e17"],html[data-theme="dark"] .page [style*="color: #211e17"],
+html[data-theme="dark"] .page [style*="color:#334155"],html[data-theme="dark"] .page [style*="color: #334155"],
+html[data-theme="dark"] .page [style*="color:#5b5648"],html[data-theme="dark"] .page [style*="color: #5b5648"],
+html[data-theme="dark"] .page [style*="color:#6b6656"],html[data-theme="dark"] .page [style*="color: #6b6656"],
+html[data-theme="dark"] .page [style*="color:#3a5a3e"],html[data-theme="dark"] .page [style*="color: #3a5a3e"],
+html[data-theme="dark"] .page [style*="color:#17362b"],html[data-theme="dark"] .page [style*="color: #17362b"]{color:#dceae4!important}
+html[data-theme="dark"] .page [style*="background:white"],html[data-theme="dark"] .page [style*="background: white"],
+html[data-theme="dark"] .page [style*="background:#fff"],html[data-theme="dark"] .page [style*="background: #fff"],
+html[data-theme="dark"] .page [style*="background:#f7f4ec"],html[data-theme="dark"] .page [style*="background: #f7f4ec"],
+html[data-theme="dark"] .page [style*="background:#f0ebdd"],html[data-theme="dark"] .page [style*="background: #f0ebdd"]{background:#1c2b24!important;border-color:rgba(230,247,239,.14)!important}
+html[data-theme="dark"] #team_dashboard #td_category_list>div{color:#dceae4!important}
+html[data-theme="dark"] #team_dashboard #td_category_list>div>div:first-child{color:#dceae4!important}
+html[data-theme="dark"] #team_dashboard #td_category_list>div>div:last-child{color:#b8cbc2!important}
+html[data-theme="dark"] #team_dashboard #td_category_list>div>div:nth-child(2){background:#26372f!important}
+html[data-theme="dark"] #team_dashboard #td_top_ranking img{border-color:#2c4439!important}
+html[data-theme="dark"] #team_dashboard .team-card-white small{color:#a8bbb2!important}
+html[data-theme="dark"] .mobile-nav button{color:#a9bbb3!important}
+html[data-theme="dark"] .mobile-nav button.active{color:#67e0b2!important}
+@media(max-width:950px){.team-command-strip{grid-template-columns:1fr}.team-target-head{flex-direction:column}.team-target-input-wrap{align-items:flex-start}.recharts-trend-root{height:255px!important;min-height:255px!important}}
+@media(max-width:650px){.daily-tip-card{align-items:flex-start}.team-target-progress-meta,.team-target-foot{flex-direction:column;align-items:flex-start}.team-target-toast{left:14px;right:14px;top:14px;min-width:0;max-width:none}.trend-mini-toolbar{align-items:flex-start}.trend-target-control{width:100%;justify-content:space-between}.recharts-trend-root{height:240px!important;min-height:240px!important}}
+</style>
+
+<script id="jk-v27-professional-analytics-js">
+(function(){
+  'use strict';
+  var TARGET_KEY = 'jk_team_monthly_reduction_goal_v27';
+  var DAILY_TARGET_KEY = 'jk_daily_personal_target_v27';
+  var THRESHOLD_KEY_PREFIX = 'jk_team_target_thresholds_v27_';
+  var trendTween = null;
+  var trendRoot = null;
+  var trendState = {data:[]};
+  var lastTheme = document.documentElement.getAttribute('data-theme') || 'light';
+
+  function safeNum(v){ try{return typeof num==='function'?num(v):(parseFloat(String(v).replace(',','.'))||0);}catch(e){return parseFloat(v)||0;} }
+  function safeFmt(v){ try{return typeof fmt==='function'?fmt(v):Number(v||0).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2});}catch(e){return (Number(v)||0).toFixed(2);} }
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function addDays(iso, delta){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+delta); return d.toISOString().slice(0,10); }
+  function monthStart(ym){ return ym+'-01'; }
+  function monthEnd(ym){ var parts=ym.split('-').map(Number); return new Date(parts[0],parts[1],0).toISOString().slice(0,10); }
+  function currentTheme(){ return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'; }
+  function getDailyTarget(){
+    var el=document.getElementById('dailyPersonalTargetInput');
+    var saved=0; try{ saved=safeNum(localStorage.getItem(DAILY_TARGET_KEY)); }catch(e){}
+    var val=saved>0?saved:(el?safeNum(el.value):5);
+    if(!isFinite(val)||val<0) val=5;
+    if(el && document.activeElement!==el) el.value=String(val);
+    return val;
+  }
+  function getTeamGoal(){
+    var el=document.getElementById('teamMonthlyReductionGoalInput');
+    var saved=0; try{ saved=safeNum(localStorage.getItem(TARGET_KEY)); }catch(e){}
+    var val=saved>0?saved:(el?safeNum(el.value):10);
+    if(!isFinite(val)||val<=0) val=10;
+    val=clamp(val,1,100);
+    if(el && document.activeElement!==el) el.value=String(val);
+    return val;
+  }
+
+  /* ---------- Recharts data builder ---------- */
+  function recordPersonalEmission(r){
+    if(!r) return 0;
+    if(r.summary && isFinite(Number(r.summary.personalTotal))) return safeNum(r.summary.personalTotal);
+    var b=r.breakdown||{};
+    return ['Motor','Mobil Pribadi','Laptop / PC','Handphone'].reduce(function(sum,k){return sum+safeNum(b[k]);},0);
+  }
+  function recordsByDate(records){
+    var map={}; (records||[]).forEach(function(r){if(r&&r.date) map[r.date]=r;}); return map;
+  }
+  function buildTrendData(records){
+    var monthSel=(document.getElementById('trendMonthSelect')||{}).value || (new Date().toISOString().slice(0,7));
+    var map=recordsByDate(records);
+    var target=getDailyTarget();
+    var rows=[];
+    if(typeof currentTrendMode==='undefined' || currentTrendMode==='day'){
+      var end = monthSel===new Date().toISOString().slice(0,7) ? todayISO() : monthEnd(monthSel);
+      var start=addDays(end,-6);
+      // Keep the 7-day window inside the selected month when possible.
+      if(start.slice(0,7)!==monthSel) start=monthStart(monthSel);
+      var d=new Date(start+'T12:00:00'); var endD=new Date(end+'T12:00:00');
+      while(d<=endD && rows.length<7){
+        var iso=d.toISOString().slice(0,10), r=map[iso];
+        rows.push({label:d.toLocaleDateString('id-ID',{day:'2-digit',month:'short'}), key:iso, actual:recordPersonalEmission(r), target:target});
+        d.setDate(d.getDate()+1);
+      }
+      while(rows.length<7){
+        var first=rows.length?new Date(rows[0].key+'T12:00:00'):new Date((end||todayISO())+'T12:00:00');
+        first.setDate(first.getDate()-1);
+        var iso2=first.toISOString().slice(0,10), r2=map[iso2];
+        rows.unshift({label:first.toLocaleDateString('id-ID',{day:'2-digit',month:'short'}),key:iso2,actual:recordPersonalEmission(r2),target:target});
+        if(rows.length>7) rows.shift();
+      }
+      return {rows:rows,subtitle:'7 Hari Terakhir · Emisi Pribadi vs Target Harian'};
+    }
+    if(currentTrendMode==='week'){
+      var wk=safeNum((document.getElementById('trendWeekSelect')||{}).value||1);
+      var parts=monthSel.split('-').map(Number), y=parts[0], m=parts[1];
+      var startDay=(wk-1)*7+1, endDay=Math.min(wk*7,new Date(y,m,0).getDate());
+      for(var day=startDay;day<=endDay;day++){
+        var isoW=monthSel+'-'+String(day).padStart(2,'0'), rw=map[isoW];
+        rows.push({label:String(day),key:isoW,actual:recordPersonalEmission(rw),target:target});
+      }
+      return {rows:rows,subtitle:'Minggu ke-'+wk+' · Emisi Pribadi vs Target Harian'};
+    }
+    var year=monthSel.slice(0,4);
+    for(var i=1;i<=12;i++){
+      var ym=year+'-'+String(i).padStart(2,'0');
+      var days=new Date(Number(year),i,0).getDate();
+      var total=(records||[]).filter(function(r){return r&&r.date&&r.date.indexOf(ym)===0;}).reduce(function(s,r){return s+recordPersonalEmission(r);},0);
+      rows.push({label:['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][i-1],key:ym,actual:total,target:target*days});
+    }
+    return {rows:rows,subtitle:'Akumulasi Bulanan · Target = Target Harian × jumlah hari'};
+  }
+
+  function renderRecharts(dataset){
+    var mount=document.getElementById('rechartsTrendRoot');
+    if(!mount) return;
+    if(!window.React || !window.ReactDOM || !window.Recharts){
+      mount.innerHTML='<div style="display:grid;place-items:center;height:100%;font-size:11px;color:var(--text-muted);font-weight:700">Memuat grafik analitik…</div>';
+      return;
+    }
+    var React=window.React, ReactDOM=window.ReactDOM, R=window.Recharts;
+    var h=React.createElement;
+    if(!trendRoot){
+      trendRoot=ReactDOM.createRoot(mount);
+    }
+    var dark=currentTheme()==='dark';
+    var actualColor=dark?'#63d9ac':'#0f8f63';
+    var targetColor=dark?'#f4c86b':'#d28a23';
+    var gridColor=dark?'rgba(226,246,237,.12)':'#e6efeb';
+    var tickColor=dark?'#afc1b9':'#72857c';
+    var tooltipBg=dark?'#182720':'#ffffff';
+    var tooltipBorder=dark?'rgba(226,246,237,.12)':'#dfe9e4';
+    var items=dataset.rows||[];
+    var content=h(R.ResponsiveContainer,{width:'100%',height:'100%'},
+      h(R.LineChart,{data:items,margin:{top:10,right:10,left:0,bottom:8}},
+        h(R.CartesianGrid,{stroke:gridColor,strokeDasharray:'4 4',vertical:false}),
+        h(R.XAxis,{dataKey:'label',tick:{fontSize:10,fill:tickColor},axisLine:false,tickLine:false,minTickGap:12}),
+        h(R.YAxis,{tick:{fontSize:10,fill:tickColor},axisLine:false,tickLine:false,width:44,tickFormatter:function(v){return safeFmt(v)} }),
+        h(R.Tooltip,{cursor:{stroke:actualColor,strokeOpacity:.16,strokeWidth:1},contentStyle:{background:tooltipBg,border:'1px solid '+tooltipBorder,borderRadius:12,boxShadow:'0 12px 30px rgba(0,0,0,.12)',fontSize:10},labelStyle:{color:dark?'#eaf8f1':'#19372d',fontWeight:800,marginBottom:4},formatter:function(v,n){return [safeFmt(v)+' kgCO₂e',n==='actual'?'Actual':'Target']} }),
+        h(R.Legend,{verticalAlign:'top',height:26,align:'right',iconType:'circle',wrapperStyle:{fontSize:9,fontWeight:800,color:dark?'#c9d9d2':'#557068'} }),
+        h(R.Line,{type:'monotone',dataKey:'actual',name:'Actual',stroke:actualColor,strokeWidth:3,dot:{r:3,strokeWidth:2,fill:dark?'#182720':'#fff'},activeDot:{r:5},isAnimationActive:false}),
+        h(R.Line,{type:'monotone',dataKey:'target',name:'Target',stroke:targetColor,strokeWidth:2.5,strokeDasharray:'7 5',dot:false,isAnimationActive:false})
+      )
+    );
+    trendRoot.render(content);
+  }
+
+  function drawChartRecharts(canvas, records){
+    var data=buildTrendData(records||((typeof state!=='undefined')?state.records:[]));
+    var prevMap={}; (trendState.data||[]).forEach(function(r){prevMap[r.key]=r;});
+    var from=data.rows.map(function(r){ var p=prevMap[r.key]; return {label:r.label,key:r.key,actual:p?safeNum(p.actual):0,target:p?safeNum(p.target):safeNum(r.target)}; });
+    var proxy={p:0};
+    if(trendTween && window.gsap){ try{trendTween.kill();}catch(e){} }
+    function paint(){
+      var p=clamp(proxy.p,0,1);
+      var rows=data.rows.map(function(r,i){var f=from[i]||{actual:0,target:0};return {label:r.label,key:r.key,actual:f.actual+(r.actual-f.actual)*p,target:f.target+(r.target-f.target)*p};});
+      document.getElementById('chartSubtitle') && (document.getElementById('chartSubtitle').textContent=data.subtitle);
+      renderRecharts({rows:rows});
+    }
+    trendState={data:data.rows};
+    if(window.gsap){
+      trendTween=window.gsap.to(proxy,{p:1,duration:.72,ease:'power3.out',onUpdate:paint,onComplete:paint});
+    }else{ proxy.p=1; paint(); }
+  }
+  window.drawChart=drawChartRecharts;
+
+  /* ---------- Category donut: GSAP-driven sweep, theme aware ---------- */
+  var originalCategoryDonut = window.drawCategoryDonut;
+  if(typeof originalCategoryDonut==='function'){
+    window.drawCategoryDonut=function(records){
+      try{
+        var canvas=document.getElementById('categoryDonut'); if(!canvas){return originalCategoryDonut(records);}
+        var legend=document.getElementById('categoryLegend');
+        var aggregate={}; (records||[]).forEach(function(r){Object.entries(r.breakdown||{}).forEach(function(pair){var v=safeNum(pair[1]);if(v>0)aggregate[pair[0]]=(aggregate[pair[0]]||0)+v;});});
+        var entries=Object.entries(aggregate).sort(function(a,b){return b[1]-a[1];}); var total=entries.reduce(function(s,p){return s+p[1];},0);
+        if(document.getElementById('categoryDonutTotal'))document.getElementById('categoryDonutTotal').textContent=safeFmt(total);
+        var ctx=canvas.getContext('2d'), dpr=window.devicePixelRatio||1,size=190;canvas.width=size*dpr;canvas.height=size*dpr;canvas.style.width=size+'px';canvas.style.height=size+'px';ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,size,size);
+        var palette=['#0f8f63','#2f80ed','#e9ad35','#d977a7','#58a6c9','#7c68d9','#65c0a0'];
+        var bg=currentTheme()==='dark'?'#2a3b32':'#e6efeb';
+        var cx=size/2,cy=size/2,r=68,ring=23;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=bg;ctx.lineWidth=ring;ctx.stroke();
+        if(!total){ if(legend)legend.innerHTML='<div class="dashboard-empty">Belum ada komponen emisi.</div>'; return; }
+        var stateAnim={p:0};
+        var paint=function(){var p=stateAnim.p;ctx.clearRect(0,0,size,size);ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=bg;ctx.lineWidth=ring;ctx.stroke();var angle=-Math.PI/2;entries.slice(0,7).forEach(function(pair,i){var sweep=pair[1]/total*Math.PI*2*p;ctx.beginPath();ctx.arc(cx,cy,r,angle,angle+sweep);ctx.strokeStyle=palette[i%palette.length];ctx.lineWidth=ring;ctx.lineCap='butt';ctx.stroke();angle+=sweep;});};
+        if(window.gsap){window.gsap.to(stateAnim,{p:1,duration:.7,ease:'power2.out',onUpdate:paint});}else{stateAnim.p=1;paint();}
+        if(legend)legend.innerHTML=entries.slice(0,7).map(function(pair,i){var pct=pair[1]/total*100;return '<div class="category-row"><span class="category-dot" style="background:'+palette[i%palette.length]+'"></span><b>'+esc(pair[0])+'</b><strong>'+pct.toFixed(0)+'%</strong></div>';}).join('');
+      }catch(e){ try{return originalCategoryDonut(records);}catch(_e){} }
+    };
+  }
+
+  /* ---------- Daily personalized tip ---------- */
+  var TIP_MAP={
+    'Motor':{icon:'🏍️',title:'Kurangi perjalanan bermotor yang tidak perlu',text:'Gabungkan beberapa tujuan dalam satu perjalanan dan pilih opsi perjalanan bersama saat memungkinkan.',label:'Motor'},
+    'Mobil Pribadi':{icon:'🚗',title:'Optimalkan perjalanan mobil pribadi',text:'Rencanakan rute sekaligus, hindari perjalanan kosong, dan pertimbangkan berbagi kendaraan untuk perjalanan rutin.',label:'Mobil pribadi'},
+    'Laptop / PC':{icon:'💻',title:'Aktifkan sleep mode lebih cepat',text:'Saat meninggalkan perangkat, aktifkan sleep mode atau matikan perangkat agar konsumsi tidak terus berjalan tanpa aktivitas.',label:'Laptop / PC'},
+    'Handphone':{icon:'📱',title:'Kurangi waktu perangkat yang tidak aktif',text:'Lepaskan charger setelah penuh dan kurangi waktu layar ketika perangkat tidak sedang dibutuhkan.',label:'Handphone'},
+    'AC Bersama':{icon:'❄️',title:'Jaga penggunaan AC tetap efisien',text:'Pastikan pintu/jendela tertutup saat AC aktif dan gunakan setelan suhu yang wajar sesuai kebutuhan ruang.',label:'AC bersama'},
+    'Lampu Bersama':{icon:'💡',title:'Matikan lampu di area kosong',text:'Prioritaskan lampu hanya pada area yang digunakan dan manfaatkan sensor/otomasi bila tersedia.',label:'Lampu bersama'},
+    'TV Bersama':{icon:'📺',title:'Hindari TV menyala tanpa penonton',text:'Matikan TV sepenuhnya saat tidak digunakan agar konsumsi energi tidak terus berjalan.',label:'TV bersama'},
+    'Mobil Perusahaan (Carpool)':{icon:'🚌',title:'Maksimalkan kapasitas carpool',text:'Pertahankan penggunaan kendaraan bersama untuk mengurangi perjalanan kendaraan per orang.',label:'Carpool'}
+  };
+  function updateDailySustainabilityTip(){
+    var title=document.getElementById('dailyTipTitle'), textEl=document.getElementById('dailyTipText'), meta=document.getElementById('dailyTipMeta'), icon=document.getElementById('dailyTipIcon');
+    if(!title||!textEl||!meta||!icon||typeof state==='undefined')return;
+    var windowStart=addDays(todayISO(),-29), records=(state.records||[]).filter(function(r){return r&&r.date&&r.date>=windowStart&&r.date<=todayISO();});
+    var agg={};records.forEach(function(r){Object.entries(r.breakdown||{}).forEach(function(pair){var v=safeNum(pair[1]);if(v>0)agg[pair[0]]=(agg[pair[0]]||0)+v;});});
+    var top=Object.entries(agg).sort(function(a,b){return b[1]-a[1];})[0];
+    if(!top){icon.textContent='🌱';title.textContent='Mulai dari aktivitas terbesar';textEl.textContent='Catat aktivitas harian Anda agar dashboard bisa memilih satu rekomendasi yang benar-benar personal.';meta.textContent='Basis: pola emisi 30 hari terakhir.';return;}
+    var cfg=TIP_MAP[top[0]]||{icon:'🌱',title:'Fokus pada aktivitas terbesar Anda',text:'Kurangi aktivitas yang paling banyak menyumbang emisi terlebih dahulu karena perubahan kecil di sumber terbesar memberi dampak lebih nyata.',label:top[0]};
+    var total=Object.values(agg).reduce(function(s,v){return s+v;},0), pct=total?top[1]/total*100:0;
+    icon.textContent=cfg.icon;title.textContent=cfg.title;textEl.textContent=cfg.text;meta.textContent='Fokus hari ini: '+cfg.label+' · '+pct.toFixed(0)+'% dari emisi 30 hari terakhir.';
+  }
+  window.updateDailySustainabilityTip=updateDailySustainabilityTip;
+
+  /* ---------- Team target progress + thresholds ---------- */
+  function teamRecordsForDept(){
+    var filter=(document.getElementById('teamDeptFilter')||{}).value||'ALL';
+    return (typeof teamDetailedRecords!=='undefined'?teamDetailedRecords:[]).filter(function(r){
+      var dept=String(r.department||'LAINNYA').trim().toUpperCase();
+      return filter==='ALL'||dept===String(filter).trim().toUpperCase();
+    });
+  }
+  function sumTeamPeriod(records, start, end){
+    return records.filter(function(r){var d=r.tanggalEmisi||r.date;return d&&d>=start&&d<=end;}).reduce(function(sum,r){
+      var indiv=safeNum(r.motor)+safeNum(r.mobil)+safeNum(r.laptop)+safeNum(r.handphone);
+      var shared=safeNum(r.ac)+safeNum(r.lampu)+safeNum(r.tv)+safeNum(r.pool);
+      return sum+indiv+shared;
+    },0);
+  }
+  function showTeamTargetToast(level, progress){
+    var box=document.getElementById('teamTargetToast');if(!box)return;
+    var icon=document.getElementById('teamTargetToastIcon'), title=document.getElementById('teamTargetToastTitle'), txt=document.getElementById('teamTargetToastText');
+    var cfg={80:['🚀','Team Target 80%','Tim sudah mencapai 80% dari target pengurangan emisi bulanan.'],95:['🔥','Team Target 95%','Tinggal sedikit lagi menuju target pengurangan emisi bulanan.'],100:['🏆','Team Target 100%','Target pengurangan emisi bulanan sudah tercapai.']}[level]||['🎯','Team Target','Progress target tim diperbarui.'];
+    icon.textContent=cfg[0];title.textContent=cfg[1];txt.textContent=cfg[2]+' Progress: '+Math.round(progress)+'%.';
+    box.classList.add('show');
+    if(window.gsap){window.gsap.killTweensOf(box);window.gsap.fromTo(box,{opacity:0,y:-14,scale:.98},{opacity:1,y:0,scale:1,duration:.45,ease:'back.out(1.5)'});window.gsap.to(box,{opacity:0,y:-10,duration:.35,delay:3.7,ease:'power2.in',onComplete:function(){box.classList.remove('show');}});}else{box.style.opacity='1';box.style.transform='none';setTimeout(function(){box.style.opacity='0';box.classList.remove('show');},4200);}
+  }
+  function notifyThresholds(monthKey, progress){
+    var goalMonth=monthKey||todayISO().slice(0,7);
+    var key=THRESHOLD_KEY_PREFIX+goalMonth+'_'+String((document.getElementById('teamDeptFilter')||{}).value||'ALL');
+    var sent={};try{sent=JSON.parse(localStorage.getItem(key)||'{}');}catch(e){}
+    var reached=[100,95,80].filter(function(t){return progress>=t&&!sent[t];});
+    if(!reached.length)return;
+    var top=Math.max.apply(null,reached); sent[top]=Date.now(); [80,95,100].forEach(function(t){if(t<top)sent[t]=Date.now();});
+    try{localStorage.setItem(key,JSON.stringify(sent));}catch(e){}
+    showTeamTargetToast(top,progress);
+  }
+  function updateTeamTargetProgress(){
+    var bar=document.getElementById('teamTargetProgressBar');if(!bar||typeof teamDetailedRecords==='undefined')return;
+    var records=teamRecordsForDept(), today=todayISO(), ym=today.slice(0,7), parts=ym.split('-').map(Number), prevY=parts[1]===1?parts[0]-1:parts[0],prevM=parts[1]===1?12:parts[1]-1, prevYm=String(prevY)+'-'+String(prevM).padStart(2,'0');
+    var curr=sumTeamPeriod(records,monthStart(ym),today);
+    var dayNo=Math.max(1,Number(today.slice(8,10))||1), prevDays=new Date(prevY,prevM,0).getDate();
+    var comparableDay=Math.min(dayNo,prevDays), comparableEnd=prevYm+'-'+String(comparableDay).padStart(2,'0');
+    var prev=sumTeamPeriod(records,monthStart(prevYm),comparableEnd);
+    var goal=getTeamGoal(), status=document.getElementById('teamTargetStatus'), progressText=document.getElementById('teamTargetProgressText');
+    var actualReduction=prev>0?Math.max(0,(prev-curr)/prev*100):0;
+    var progress=prev>0?clamp(actualReduction/goal*100,0,100):0;
+    if(window.gsap){window.gsap.to(bar,{width:progress+'%',duration:.6,ease:'power2.out'});}else{bar.style.width=progress+'%';}
+    if(progressText)progressText.textContent=Math.round(progress)+'%';
+    if(status){status.textContent=prev>0?'Efisiensi aktual '+actualReduction.toFixed(1)+'% dari target '+goal+'%.':'Belum ada baseline bulan sebelumnya pada filter ini.';}
+    var baseEl=document.getElementById('teamTargetBaselineText'),curEl=document.getElementById('teamTargetCurrentText');
+    if(baseEl)baseEl.textContent='Baseline: '+safeFmt(prev)+' kgCO₂e'; if(curEl)curEl.textContent='Bulan ini: '+safeFmt(curr)+' kgCO₂e';
+    if(prev>0)notifyThresholds(ym,progress);
+  }
+  window.updateTeamTargetProgress=updateTeamTargetProgress;
+
+  /* ---------- 30-day PDF export ---------- */
+  function selectedTeamRecords30(){
+    var endEl=document.getElementById('teamExportEndDate');
+    var end=(endEl&&endEl.value)||todayISO(), start=addDays(end,-29);
+    var dept=(document.getElementById('teamDeptFilter')||{}).value||'ALL';
+    var rows=(typeof teamDetailedRecords!=='undefined'?teamDetailedRecords:[]).filter(function(r){
+      var d=r.tanggalEmisi||r.date, dp=String(r.department||'LAINNYA').trim().toUpperCase();
+      return d&&d>=start&&d<=end&&(dept==='ALL'||dp===String(dept).trim().toUpperCase());
+    });
+    return {start:start,end:end,dept:dept,rows:rows};
+  }
+  function exportTeamDashboardPDF(){
+    var payload=selectedTeamRecords30();
+    if(!window.jspdf||!window.jspdf.jsPDF){toast('⚠️ Modul PDF belum siap. Pastikan koneksi internet tersedia lalu coba lagi.');return;}
+    if(!payload.rows.length){toast('ℹ️ Tidak ada data tim pada periode 30 hari yang dipilih.');return;}
+    var jsPDF=window.jspdf.jsPDF, doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    var deptLabel=payload.dept==='ALL'?'Semua Departemen':payload.dept;
+    doc.setFillColor(9,75,54);doc.rect(0,0,297,22,'F');doc.setTextColor(255,255,255);doc.setFontSize(17);doc.setFont(undefined,'bold');doc.text('JejakKarbonKu — Team Carbon Report',14,14);
+    doc.setFontSize(9);doc.setFont(undefined,'normal');doc.text('Periode: '+payload.start+' s/d '+payload.end+' · '+deptLabel,205,14,{align:'right'});
+    var perUser={};
+    var totalInd=0,totalShared=0,total=0;
+    payload.rows.forEach(function(r){
+      var id=String(r.userId||'').trim()||('row_'+Math.random());
+      var indiv=safeNum(r.motor)+safeNum(r.mobil)+safeNum(r.laptop)+safeNum(r.handphone);
+      var shared=safeNum(r.ac)+safeNum(r.lampu)+safeNum(r.tv)+safeNum(r.pool);
+      var t=indiv+shared; totalInd+=indiv;totalShared+=shared;total+=t;
+      if(!perUser[id])perUser[id]={name:r.userName||id,dept:r.department||'Lainnya',days:new Set(),indiv:0,shared:0,total:0};
+      perUser[id].days.add(r.tanggalEmisi||r.date);perUser[id].indiv+=indiv;perUser[id].shared+=shared;perUser[id].total+=t;
+    });
+    doc.setTextColor(25,48,39);doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('Ringkasan 30 Hari',14,32);
+    doc.setFontSize(9);doc.setFont(undefined,'normal');doc.text('Total Emisi',14,40);doc.text(safeFmt(total)+' kgCO₂e',14,46);doc.text('Individual',85,40);doc.text(safeFmt(totalInd)+' kgCO₂e',85,46);doc.text('Shared',150,40);doc.text(safeFmt(totalShared)+' kgCO₂e',150,46);doc.text('Anggota',215,40);doc.text(String(Object.keys(perUser).length)+' user',215,46);
+    var rowsUser=Object.values(perUser).sort(function(a,b){return b.total-a.total;}).map(function(u){return [u.name,u.dept,String(u.days.size),safeFmt(u.indiv),safeFmt(u.shared),safeFmt(u.total)];});
+    if(typeof doc.autoTable==='function'){
+      doc.autoTable({startY:54,head:[['Anggota','Departemen','Hari','Individual (kgCO₂e)','Shared (kgCO₂e)','Total (kgCO₂e)']],body:rowsUser,theme:'grid',styles:{fontSize:8,cellPadding:3,textColor:[28,51,41]},headStyles:{fillColor:[15,143,99],textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[246,250,248]},columnStyles:{2:{halign:'center'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right'}}});
+      var y=(doc.lastAutoTable&&doc.lastAutoTable.finalY?doc.lastAutoTable.finalY:150)+10;
+      var cat={};payload.rows.forEach(function(r){[['Motor',r.motor],['Mobil Pribadi',r.mobil],['Laptop / PC',r.laptop],['Handphone',r.handphone],['AC Bersama',r.ac],['Lampu Bersama',r.lampu],['TV Bersama',r.tv],['Mobil Perusahaan (Carpool)',r.pool]].forEach(function(p){cat[p[0]]=(cat[p[0]]||0)+safeNum(p[1]);});});
+      var catRows=Object.entries(cat).filter(function(p){return p[1]>0;}).sort(function(a,b){return b[1]-a[1];}).map(function(p){return [p[0],safeFmt(p[1]),total?(p[1]/total*100).toFixed(1)+'%':'0.0%'];});
+      doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('Breakdown Kategori',14,y);
+      doc.autoTable({startY:y+4,head:[['Kategori','Emisi (kgCO₂e)','Proporsi']],body:catRows,theme:'grid',styles:{fontSize:8,cellPadding:3,textColor:[28,51,41]},headStyles:{fillColor:[41,90,70],textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[248,250,249]},columnStyles:{1:{halign:'right'},2:{halign:'right'}}});
+    }else{
+      doc.setFontSize(8);doc.text('Plugin tabel PDF belum termuat; ringkasan tetap dibuat di halaman ini.',14,58);
+      var y=68;Object.values(perUser).forEach(function(u){doc.text(u.name+' · '+u.dept+' · '+safeFmt(u.indiv)+' ind · '+safeFmt(u.shared)+' shared · '+safeFmt(u.total)+' total',14,y);y+=5;if(y>190){doc.addPage();y=18;}});
+    }
+    var footerY=202;
+    if(typeof doc.lastAutoTable==='object' && doc.lastAutoTable && doc.lastAutoTable.finalY){
+      footerY=Math.min(202,doc.lastAutoTable.finalY+8);
+    }
+    if(footerY>195){doc.addPage();footerY=18;}
+    doc.setFontSize(8);doc.setTextColor(105,120,113);doc.text('Dibuat dari data rinci Team Dashboard. Periode 30 hari bersifat rolling dari tanggal akhir yang dipilih.',14,footerY);
+    doc.save('JejakKarbonKu_Team_30Hari_'+payload.end+'.pdf');
+  }
+  window.exportTeamDashboardPDF=exportTeamDashboardPDF;
+
+  /* ---------- Enhancement hooks ---------- */
+  function enhanceRenderHooks(){
+    if(typeof window.renderDashboard==='function' && !window.renderDashboard.__jkV27Wrapped){
+      var origRD=window.renderDashboard;
+      var wrappedRD=function(){var r=origRD.apply(this,arguments);try{updateDailySustainabilityTip();}catch(e){}return r;};
+      wrappedRD.__jkV27Wrapped=true;window.renderDashboard=wrappedRD;
+    }
+    if(typeof window.renderTeamDashboardView==='function' && !window.renderTeamDashboardView.__jkV27Wrapped){
+      var origTD=window.renderTeamDashboardView;
+      var wrappedTD=function(){var r=origTD.apply(this,arguments);try{updateTeamTargetProgress();}catch(e){}return r;};
+      wrappedTD.__jkV27Wrapped=true;window.renderTeamDashboardView=wrappedTD;
+    }
+  }
+
+  function loadScript(src, test){
+    return new Promise(function(resolve,reject){
+      if(test && test()) return resolve(true);
+      var s=document.createElement('script');s.src=src;s.async=false;s.onload=function(){resolve(true)};s.onerror=function(){reject(new Error('load failed '+src))};document.head.appendChild(s);
+    });
+  }
+  async function bootLibraries(){
+    try{
+      await loadScript('https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js',function(){return !!window.React});
+      await loadScript('https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js',function(){return !!window.ReactDOM});
+      await loadScript('https://cdn.jsdelivr.net/npm/recharts@2.15.4/umd/Recharts.min.js',function(){return !!window.Recharts});
+    }catch(e){console.warn('Recharts loader:',e);}
+    try{await loadScript('https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js',function(){return !!window.gsap});}catch(e){console.warn('GSAP loader:',e);}
+    try{
+      await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',function(){return !!(window.jspdf&&window.jspdf.jsPDF)});
+      await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js',function(){return !!window.jspdf});
+    }catch(e){console.warn('PDF loader:',e);}
+    enhanceRenderHooks();
+    try{if(typeof window.renderDashboard==='function')window.renderDashboard();}catch(e){}
+    try{updateDailySustainabilityTip();updateTeamTargetProgress();}catch(e){}
+  }
+
+  function init(){
+    var end=document.getElementById('teamExportEndDate');if(end&&!end.value)end.value=todayISO();
+    var dt=document.getElementById('dailyPersonalTargetInput');if(dt){dt.value=String(getDailyTarget());dt.addEventListener('change',function(){var v=clamp(safeNum(dt.value),0,9999);dt.value=String(v);try{localStorage.setItem(DAILY_TARGET_KEY,String(v));}catch(e){}try{if(typeof window.renderDashboard==='function')window.renderDashboard();}catch(e){}});}
+    var tg=document.getElementById('teamMonthlyReductionGoalInput');if(tg){tg.value=String(getTeamGoal());tg.addEventListener('change',function(){var v=clamp(safeNum(tg.value),1,100);tg.value=String(v);try{localStorage.setItem(TARGET_KEY,String(v));}catch(e){}try{updateTeamTargetProgress();}catch(e){}});}
+    if(typeof window.renderDashboard==='function'&&!window.renderDashboard.__jkV27Wrapped)enhanceRenderHooks();
+    try{updateDailySustainabilityTip();updateTeamTargetProgress();}catch(e){}
+    var obs=new MutationObserver(function(){var th=currentTheme();if(th!==lastTheme){lastTheme=th;try{if(typeof window.renderDashboard==='function')window.renderDashboard();}catch(e){}}});obs.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+    bootLibraries();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(init,80);});else setTimeout(init,80);
+})();
+</script>
+</body>
+</html>
