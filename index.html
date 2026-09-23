@@ -7809,42 +7809,75 @@ function processServerDataAndLogin(data, uid, pwd) {
 }
 
 $('authLoginBtn').onclick = async () => {
-  const uid = $('authUserId').value.trim(), pwd = $('authPassword').value.trim(), errBox = $('authErrorMsg');
+  const uid = $('authUserId').value.trim();
+  // Jangan trim password: spasi adalah bagian dari password yang sah.
+  const pwd = $('authPassword').value;
+  const errBox = $('authErrorMsg');
+  const btn = $('authLoginBtn');
   errBox.style.display = 'none';
-  if(!uid || !pwd) return toast('⚠️ Tolong berikan otoritas ID dan kata sandi terlebih dulu.');
+  if(!uid || !pwd) return toast('⚠️ User ID dan kata sandi wajib diisi.');
   if(!isValidUserId(uid)) return toast('⚠️ Format User ID tidak valid (huruf/angka, 3-30 karakter).');
 
-  toast('⏳ Autentikasi sesi...');
+  btn.disabled = true;
+  btn.dataset.originalText = btn.textContent;
+  btn.textContent = 'Menghubungkan…';
+  toast('⏳ Memverifikasi akun…');
+
   try {
-    // [FIX-SECURITY] Verifikasi password sekarang 100% terjadi di server
-    // (action=verify_login), bukan lagi dengan mengambil hash tersimpan
-    // lewat GET ?userId= lalu membandingkannya di browser. Itu dulu
-    // membuat siapa pun yang tahu sebuah userId bisa mengambil hash
-    // password-nya tanpa login sama sekali. "legacyRaw" hanya dipakai
-    // server untuk memigrasikan akun lama yang sandinya belum berbentuk hash.
     const hashedInput = await hashPassword(uid, pwd);
-    const verifyUrl = SCRIPT_URL + "?action=verify_login&userId=" + encodeURIComponent(uid) +
-      "&password=" + encodeURIComponent(hashedInput) + "&legacyRaw=" + encodeURIComponent(pwd);
-    const verifyRes = await fetch(verifyUrl);
-    const verifyData = await verifyRes.json();
+    const verifyUrl = SCRIPT_URL + '?action=verify_login&userId=' + encodeURIComponent(uid) +
+      '&password=' + encodeURIComponent(hashedInput) +
+      '&legacyRaw=' + encodeURIComponent(pwd) +
+      '&t=' + Date.now();
+
+    const verifyRes = await fetch(verifyUrl, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-store',
+      redirect: 'follow',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    const verifyText = await verifyRes.text();
+    let verifyData;
+    try { verifyData = JSON.parse(verifyText); }
+    catch (_) { throw new Error('Respons server login tidak valid. Pastikan deployment Apps Script terbaru sudah aktif.'); }
 
     if (verifyData.status !== 'success') {
       errBox.style.display = 'block';
-      toast('❌ ' + (verifyData.message || 'userId atau password salah.'));
+      errBox.textContent = '❌ ' + (verifyData.message || 'User ID atau kata sandi salah.');
+      toast('❌ Login gagal.');
       return;
     }
 
-    // Password sudah tervalidasi di server. Ambil profil + riwayat lengkap
-    // (endpoint ini sudah tidak pernah mengikutkan field password).
-    const res = await fetch(SCRIPT_URL + "?userId=" + encodeURIComponent(uid));
-    const data = await res.json();
-    if (data.status === 'success') {
-      processServerDataAndLogin(data, uid, pwd);
-      toast('✅ Welcome back!');
-    } else {
-      errBox.style.display = 'block'; toast('❌ Gagal memuat profil setelah login.');
+    // Ambil profil/riwayat hanya setelah kredensial tervalidasi.
+    const profileRes = await fetch(SCRIPT_URL + '?userId=' + encodeURIComponent(uid) + '&t=' + Date.now(), {
+      method: 'GET', mode: 'cors', cache: 'no-store', redirect: 'follow',
+      headers: { 'Accept': 'application/json' }
+    });
+    const profileText = await profileRes.text();
+    let data;
+    try { data = JSON.parse(profileText); }
+    catch (_) { throw new Error('Login berhasil, tetapi respons profil tidak valid.'); }
+
+    if (data.status !== 'success') {
+      errBox.style.display = 'block';
+      errBox.textContent = '❌ Login terverifikasi, tetapi profil pengguna gagal dimuat.';
+      toast('⚠️ Akun benar, profil belum dapat dimuat.');
+      return;
     }
-  } catch(e) { toast('❌ Server pusat sedang maintenance atau offline.'); }
+
+    processServerDataAndLogin(data, uid, pwd);
+    toast('✅ Login berhasil. Selamat datang kembali!');
+  } catch(e) {
+    console.error('JejakKarbonKu login:', e);
+    errBox.style.display = 'block';
+    errBox.textContent = '❌ ' + (e && e.message ? e.message : 'Tidak dapat menghubungi server login.');
+    toast('❌ Koneksi/login gagal.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.originalText || 'Masuk Aplikasi';
+  }
 };
 
 $('authSubmitRegisterBtn').onclick = async () => {
