@@ -18,13 +18,12 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+
+<!-- GSAP: smooth chart-transition animations (dashboard trend + weekly dual-line chart) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<!-- jsPDF + AutoTable: flexible "Export to PDF" for the Team Dashboard -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
 <script>
 window.deferredPwaPrompt = null;
@@ -4917,7 +4916,7 @@ body.jk-intro-lock{overflow:hidden!important;}
             </div>
           </div>
           <div id="chartSubtitle" class="chart-subtitle"></div>
-          <div class="chart" id="trendChart" aria-label="Grafik emisi aktual dibandingkan target personal harian"></div>
+          <canvas class="chart" id="trendChart"></canvas>
         </section>
 
         <section class="dashboard-panel distribution-panel">
@@ -4972,6 +4971,36 @@ body.jk-intro-lock{overflow:hidden!important;}
         <button type="button" id="refreshLeaderboardBtn">Refresh</button>
       </div>
 
+      <div class="dashboard-grid-2">
+        <section class="dashboard-panel weekly-trend-panel">
+          <div class="dashboard-panel-head">
+            <div>
+              <span class="section-kicker">7-Day Trend</span>
+              <h3>Aktual vs Target Harian</h3>
+            </div>
+            <span class="panel-status">Live</span>
+          </div>
+          <div class="weekly-legend">
+            <span><i class="dot dot-actual"></i> Emisi Aktual</span>
+            <span><i class="dot dot-target"></i> Target Harian</span>
+          </div>
+          <canvas class="chart" id="weeklyTrendChart" style="height:220px;"></canvas>
+        </section>
+
+        <section class="dashboard-panel tip-panel">
+          <div class="dashboard-panel-head">
+            <div>
+              <span class="section-kicker">Daily Insight</span>
+              <h3>Tips Keberlanjutan Hari Ini</h3>
+            </div>
+            <span class="panel-status">🌱</span>
+          </div>
+          <div id="sustainabilityTipBox" class="sustainability-tip-box">
+            <div class="dashboard-empty">Menganalisis aktivitas emisi tertinggi kamu…</div>
+          </div>
+        </section>
+      </div>
+
       <section class="dashboard-news-bottom" id="sustainabilityNews">
         <div class="sustainability-news-head">
           <div>
@@ -5013,53 +5042,22 @@ body.jk-intro-lock{overflow:hidden!important;}
     <select id="teamDeptFilter" onchange="syncDeptFilter(this.value)" style="padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700; border: 1px solid #d3cab3; background: white; color: var(--esg-dark); cursor:pointer;">
     </select>
     <button onclick="loadTeamData()" class="btn primary" style="width: auto;">🔄 Refresh <span id="td_user_count" style="background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:10px; margin-left:8px; font-size: 11.5px;">Memuat…</span></button>
+    <button type="button" onclick="openExportModal()" class="btn outline" style="width:auto; background:white; border:1px solid #d3cab3;">📤 Export Data</button>
 </div>
       </div>
 
-      <div class="team-tools-bar" id="teamToolsBar">
-        <div class="team-target-control">
-          <div>
-            <span class="team-tools-kicker">TEAM TARGET</span>
-            <strong>Target pengurangan bulanan</strong>
-            <small>Progress dihitung terhadap total bulan sebelumnya.</small>
-          </div>
-          <label class="target-input-wrap"><input id="teamReductionGoalInput" type="number" min="1" max="100" step="1" value="10" aria-label="Target pengurangan bulanan dalam persen"><span>%</span></label>
-        </div>
-        <div class="team-export-controls">
-          <div class="export-date-range">
-            <label>Periode export 30 hari</label>
-            <div><input id="teamExportStart" type="date"><span>→</span><input id="teamExportEnd" type="date"></div>
-          </div>
-          <button type="button" class="btn primary team-export-btn" onclick="openExportCenter()">📤 Export Data</button>
-        </div>
-      </div>
-
       <div class="team-target-card" id="teamTargetCard">
-        <div class="team-target-head">
-          <div><span class="section-kicker">Monthly Efficiency Goal</span><h3>Team Target Progress</h3><p id="teamTargetDescription">Menghitung pencapaian pengurangan emisi dibandingkan bulan sebelumnya.</p></div>
-          <strong id="teamTargetPercent">0%</strong>
-        </div>
-        <div class="team-target-track"><span id="teamTargetProgressBar"></span></div>
-        <div class="team-target-meta"><span id="teamTargetStatus">Menunggu data bulan berjalan…</span><span id="teamTargetNumbers">0 / 0 kgCO₂e reduction</span></div>
-      </div>
-
-
-      <div id="teamExportModal" class="jk-export-modal" aria-hidden="true">
-        <div class="jk-export-backdrop" onclick="closeExportCenter()"></div>
-        <div class="jk-export-card" role="dialog" aria-modal="true" aria-labelledby="jkExportTitle">
-          <div class="jk-export-head"><div><span class="section-kicker">EXPORT CENTER</span><h3 id="jkExportTitle">Pilih data yang ingin diexport</h3><p>Konfirmasi isi laporan sebelum file dibuat. Periode mengikuti tanggal di atas.</p></div><button type="button" class="jk-export-close" onclick="closeExportCenter()">×</button></div>
-          <div class="jk-export-grid">
-            <label class="jk-export-option"><input type="checkbox" id="expSummary" checked><span><b>Ringkasan KPI</b><small>Total, Individual, Shared, jumlah pengguna</small></span></label>
-            <label class="jk-export-option"><input type="checkbox" id="expBreakdown" checked><span><b>Breakdown Individual vs Shared</b><small>Per anggota tim untuk periode terpilih</small></span></label>
-            <label class="jk-export-option"><input type="checkbox" id="expDaily" checked><span><b>Detail Harian</b><small>Rincian aktivitas per tanggal dan pengguna</small></span></label>
-            <label class="jk-export-option"><input type="checkbox" id="expCategory"><span><b>Breakdown Kategori</b><small>Motor, mobil, laptop, HP, AC, lampu, TV, carpool</small></span></label>
-            <label class="jk-export-option"><input type="checkbox" id="expTarget"><span><b>Team Target</b><small>Target pengurangan dan progress bulan berjalan</small></span></label>
+        <div class="ttc-head">
+          <div>
+            <span class="ttc-kicker">🎯 TEAM TARGET</span>
+            <h4 id="ttcTitle">Target Reduksi Emisi Bulanan</h4>
           </div>
-          <div class="jk-export-format"><b>Format file</b><div><button type="button" data-format="pdf" class="jk-format-btn active" onclick="selectExportFormat('pdf')">📄 PDF</button><button type="button" data-format="word" class="jk-format-btn" onclick="selectExportFormat('word')">📝 Word</button><button type="button" data-format="excel" class="jk-format-btn" onclick="selectExportFormat('excel')">📊 Excel</button></div></div>
-          <div class="jk-export-preview" id="jkExportPreview"></div>
-          <div class="jk-export-actions"><button type="button" class="btn outline" onclick="closeExportCenter()">Batal</button><button type="button" class="btn primary" onclick="confirmExportTeamDashboard()">✓ Konfirmasi & Export</button></div>
+          <strong class="ttc-pct" id="ttcPct">0%</strong>
         </div>
+        <div class="ttc-bar"><div class="ttc-bar-fill" id="ttcBarFill" style="width:0%"></div></div>
+        <p class="ttc-sub" id="ttcSub">Memuat progres target tim…</p>
       </div>
+
       <div class="team-hero" id="teamHero">
         <div class="team-hero-bg"></div>
         <div class="team-hero-overlay"></div>
@@ -6656,7 +6654,6 @@ function syncPeriodFilter(val) {
     if ($('rtPeriodFilterSync')) $('rtPeriodFilterSync').value = val;
     renderTeamDashboardView();
     renderRankingDataView();
-    if(typeof monitorTeamTargetProgress==='function') monitorTeamTargetProgress();
 }
 
 function syncDeptFilter(val) {
@@ -6758,7 +6755,6 @@ async function loadTeamData(force=false) {
 
   renderTeamDashboardView();
   renderRankingDataView();
-  if(typeof monitorTeamTargetProgress==='function') monitorTeamTargetProgress();
 
   // Do NOT fan out requests on every navigation.
   // Refresh detailed data at most every 2 minutes, in background.
@@ -7668,7 +7664,7 @@ function renderDashboard() {
 
   if($('breakdownBoxToday')) renderBreakdownToday($('breakdownBoxToday'), r?.breakdown || {});  
   if($('breakdownBoxGrand')) renderBreakdownGrand($('breakdownBoxGrand'), filteredGrandRecords);
-  if($('trendChart')) renderRechartsTrend(state.records); animateDashboardCharts(); updateDailyPersonalizedTip();
+  if($('trendChart')) drawChart($('trendChart'), state.records);
   renderDashboardTeamPreview();
   drawCategoryDonut(filteredGrandRecords);
   syncDashboardMeta();
@@ -8828,37 +8824,6 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 
 </body>  
-<style id="feature-upgrade-v3">
-#trendChart{height:280px!important;width:100%;min-height:250px;position:relative}
-.team-tools-bar{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;background:var(--gk-card,#fff);border:1px solid var(--gk-line,rgba(15,54,43,.09));border-radius:20px;padding:16px 18px;margin:0 0 18px;box-shadow:0 8px 26px rgba(8,60,44,.07)}
-.team-target-control,.team-export-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.team-tools-kicker{display:block;font-size:9px;font-weight:900;letter-spacing:1px;color:#4b7a5b;margin-bottom:3px}
-.team-target-control strong{display:block;font-size:13px;color:var(--gk-ink,#0b1f1a)}
-.team-target-control small{display:block;font-size:10px;color:var(--gk-muted,#64756f);margin-top:3px}
-.target-input-wrap{display:flex;align-items:center;gap:5px;background:#f4f8f6;border:1px solid #dce8e2;border-radius:10px;padding:5px 9px;font-weight:900;color:#4b7a5b}
-.target-input-wrap input{width:48px;background:transparent;text-align:center;font-weight:900;color:inherit}
-.export-date-range label{display:block;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.8px;color:var(--gk-muted,#64756f);margin-bottom:5px}
-.export-date-range>div{display:flex;align-items:center;gap:5px}
-.export-date-range input{width:132px;padding:8px 9px;border-radius:9px;border:1px solid #dce8e2;background:#f8fbf9;color:#0b1f1a;font-size:11px;font-weight:700}
-.team-export-btn{width:auto!important;padding:9px 13px!important;font-size:11px!important}
-.team-target-card{background:linear-gradient(135deg,#073f2e,#0b6b4f);color:white;border-radius:22px;padding:20px 22px;margin:0 0 22px;box-shadow:0 15px 35px rgba(5,111,78,.18)}
-.team-target-head{display:flex;justify-content:space-between;gap:18px;align-items:center}
-.team-target-head h3{margin:6px 0 4px;color:white;font-size:18px}
-.team-target-head p{margin:0;color:rgba(255,255,255,.72);font-size:11px}
-.team-target-head>strong{font-size:36px;letter-spacing:-1.5px}
-.team-target-track{height:12px;background:rgba(255,255,255,.13);border-radius:999px;overflow:hidden;margin:17px 0 10px}
-.team-target-track span{display:block;height:100%;width:0;background:linear-gradient(90deg,#a7f3d0,#5eead4);border-radius:999px;transition:width .8s ease}
-.team-target-meta{display:flex;justify-content:space-between;gap:10px;font-size:10.5px;color:rgba(255,255,255,.78);font-weight:700}
-.sustainability-tip-panel .tip-content{display:flex;align-items:center;gap:14px;padding:5px 2px 4px}
-.tip-icon{width:52px;height:52px;border-radius:16px;background:linear-gradient(135deg,#dff8ee,#b7efd9);display:grid;place-items:center;font-size:25px;flex:none}
-.tip-content strong{display:block;color:var(--gk-ink,#0b1f1a);font-size:13px}
-.tip-content p{margin:5px 0 0;color:var(--gk-muted,#64756f);font-size:11px;line-height:1.55}
-html[data-theme="dark"] .team-tools-bar,html[data-theme="dark"] .sustainability-tip-panel{background:var(--gk-card)!important;color:var(--gk-ink)!important;border-color:var(--gk-line)!important}
-html[data-theme="dark"] .team-target-control strong,html[data-theme="dark"] .tip-content strong{color:var(--gk-ink)!important}
-html[data-theme="dark"] .team-target-control small,html[data-theme="dark"] .tip-content p,html[data-theme="dark"] #dashboard .team-pulse-summary span{color:var(--gk-muted)!important}
-html[data-theme="dark"] #dashboard .category-legend b,html[data-theme="dark"] #dashboard .category-legend strong{color:var(--gk-ink)!important}
-@media(max-width:900px){.team-tools-bar{align-items:stretch}.team-target-control,.team-export-controls{width:100%}.team-export-controls{justify-content:flex-start}.export-date-range{width:100%}.export-date-range input{flex:1;width:auto}.team-target-head{align-items:flex-start}.team-target-head>strong{font-size:28px}}
-</style>
 </html>
 <style id="v16-team-hero-input-fix">
 .team-hero-photo-label{display:none!important}
@@ -9085,170 +9050,6 @@ html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; 
 @media(prefers-reduced-motion: reduce){ .achv-badge.unlocked .achv-icon{animation:none!important} }
 </style>
 
-
-<style id="export-center-and-chart-fix">
-#trendChart{height:280px!important;width:100%!important;min-height:280px;display:block;position:relative;overflow:visible!important} #trendChart>div{width:100%!important;height:280px!important;min-height:280px!important}
-#trendChart .recharts-responsive-container{width:100%!important;height:100%!important}
-.jk-export-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:18px}
-.jk-export-modal.show{display:flex}
-.jk-export-backdrop{position:absolute;inset:0;background:rgba(10,25,19,.58);backdrop-filter:blur(6px)}
-.jk-export-card{position:relative;width:min(720px,100%);max-height:90vh;overflow:auto;background:var(--gk-card,#fff);color:var(--gk-ink,#17231d);border:1px solid rgba(120,150,135,.2);border-radius:24px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.25)}
-.jk-export-head{display:flex;justify-content:space-between;gap:18px}.jk-export-head h3{margin:7px 0 5px;font-size:21px}.jk-export-head p{margin:0;color:var(--gk-muted,#68766f);font-size:12px}.jk-export-close{background:transparent;font-size:28px;color:inherit;width:38px;height:38px;border-radius:12px}.jk-export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:20px 0}.jk-export-option{display:flex;gap:10px;padding:13px;border:1px solid rgba(120,150,135,.18);border-radius:15px;cursor:pointer;background:rgba(127,170,150,.045)}.jk-export-option input{accent-color:#16b981;margin-top:3px}.jk-export-option b{display:block;font-size:12px}.jk-export-option small{display:block;margin-top:3px;color:var(--gk-muted,#68766f);font-size:10px;line-height:1.4}.jk-export-format{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid rgba(120,150,135,.15);padding-top:16px}.jk-format-btn{padding:9px 13px;border:1px solid rgba(120,150,135,.2);background:transparent;border-radius:10px;font-weight:800;color:inherit;margin-left:6px}.jk-format-btn.active{background:#0b8f64;color:#fff;border-color:#0b8f64}.jk-export-preview{margin:16px 0;padding:13px;border-radius:14px;background:rgba(127,170,150,.07);font-size:11px;line-height:1.7}.jk-export-actions{display:flex;justify-content:flex-end;gap:10px}.jk-export-actions .btn{width:auto}.jk-export-modal.show .jk-export-card{animation:jkExportPop .25s ease-out}@keyframes jkExportPop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-html[data-theme="dark"] .jk-export-card{background:#16221c;color:#eef8f2;border-color:#2b4438}.jk-export-modal .section-kicker{color:#0b8f64}
-@media(max-width:650px){.jk-export-grid{grid-template-columns:1fr}.jk-export-format{align-items:flex-start;flex-direction:column}.jk-format-btn{margin:4px 4px 0 0}.jk-export-actions{flex-direction:column}.jk-export-actions .btn{width:100%}}
-</style>
-<script id="feature-upgrade-v3-js">
-(function(){
-'use strict';
-const CFG={reductionGoalPct:10,personalTargetFactor:.90,targetStorageKey:'JejakKarbonKu_TEAM_TARGET_PROGRESS_V3',goalStorageKey:'JejakKarbonKu_TEAM_GOAL_V3'};
-const F=v=>Number(v)||0, iso=d=>{d=new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function ensureExportDates(){const e=$('teamExportEnd'),s=$('teamExportStart');if(!e||!s)return;const n=new Date(),x=iso(n),d=new Date(n);d.setDate(d.getDate()-29);if(!e.value)e.value=x;if(!s.value)s.value=iso(d)} window.ensureExportDates=ensureExportDates;
-function teamRows(start,end){return(Array.isArray(teamDetailedRecords)?teamDetailedRecords:[]).filter(r=>{const d=String(r.tanggalEmisi||r.date||'').slice(0,10);return d&&d>=start&&d<=end}).map(r=>{const individual=F(r.motor)+F(r.mobil)+F(r.laptop)+F(r.handphone),shared=F(r.ac)+F(r.lampu)+F(r.tv)+F(r.pool);return{date:String(r.tanggalEmisi||r.date||'').slice(0,10),userId:String(r.userId||''),userName:r.userName||'Anonim',department:r.department||'Lainnya',individual,shared,total:individual+shared}})}
-function aggregate(rows){const m={};rows.forEach(r=>{const k=r.userId||r.userName;if(!m[k])m[k]={userId:r.userId,userName:r.userName,department:r.department,individual:0,shared:0,total:0};m[k].individual+=r.individual;m[k].shared+=r.shared;m[k].total+=r.total});return Object.values(m)}
-function monthRange(offset){const n=new Date(),first=new Date(n.getFullYear(),n.getMonth()+offset,1),last=offset===0?n:new Date(n.getFullYear(),n.getMonth()+1+offset,0);return[iso(first),iso(last)]}
-function monitorTeamTargetProgress(){const p=$('teamTargetPercent'),b=$('teamTargetProgressBar');if(!p||!b)return;const now=monthRange(0),prev=monthRange(-1),a=teamRows(now[0],now[1]).reduce((s,r)=>s+r.total,0),base=teamRows(prev[0],prev[1]).reduce((s,r)=>s+r.total,0),goal=clamp(F($('teamReductionGoalInput')?.value)||CFG.reductionGoalPct,1,100),need=base*goal/100,achieved=Math.max(0,base-a),progress=need?Math.min(100,achieved/need*100):0;p.textContent=Math.round(progress)+'%';b.style.width=progress+'%';if($('teamTargetDescription'))$('teamTargetDescription').textContent=base?`Target pengurangan ${goal}% dari ${fmt(base)} kgCO₂e bulan sebelumnya.`:'Data bulan sebelumnya belum tersedia untuk menghitung target.';if($('teamTargetNumbers'))$('teamTargetNumbers').textContent=`${fmt(achieved)} / ${fmt(need)} kgCO₂e reduction`;if($('teamTargetStatus'))$('teamTargetStatus').textContent=base?(progress>=100?'🎯 Target 100% tercapai':progress>=95?'🔥 Hampir tuntas — 95%+':progress>=80?'🌱 On track — 80%+':'📈 Terus dorong efisiensi'):'Menunggu baseline bulan sebelumnya…';const key=CFG.targetStorageKey+'_'+new Date().toISOString().slice(0,7);let seen={};try{seen=JSON.parse(localStorage.getItem(key)||'{}')}catch(e){}[[80,'🌱 Team Target mencapai 80%!'],[95,'🔥 Team Target mencapai 95%!'],[100,'🎯 Team Target 100% tercapai!']].forEach(([t,msg])=>{if(progress>=t&&!seen[t]){seen[t]=1;localStorage.setItem(key,JSON.stringify(seen));setTimeout(()=>toast(msg),150)}})}
-window.monitorTeamTargetProgress=monitorTeamTargetProgress;
-function personalTarget(){const n=todayISO(),d=new Date();d.setDate(d.getDate()-29);const a=(state.records||[]).filter(r=>r.date>=iso(d)&&r.date<=n);return a.length?a.reduce((s,r)=>s+F(r.total),0)/a.length*CFG.personalTargetFactor:0}
-function trendData(records){const mode=currentTrendMode||'day',t=personalTarget(),n=new Date(),out=[];if(mode==='day'){for(let i=6;i>=0;i--){const d=new Date(n);d.setDate(n.getDate()-i);const k=iso(d),r=records.find(x=>x.date===k);out.push({label:k.slice(5),actual:F(r?.total),target:+t.toFixed(2)})}}else if(mode==='week'){const sel=$('trendMonthSelect')?.value||iso(n).slice(0,7),w=+$('trendWeekSelect')?.value||1,[y,m]=sel.split('-').map(Number),st=(w-1)*7+1,en=Math.min(w*7,new Date(y,m,0).getDate());for(let d=st;d<=en;d++){const k=`${sel}-${String(d).padStart(2,'0')}`,r=records.find(x=>x.date===k);out.push({label:String(d),actual:F(r?.total),target:+t.toFixed(2)})}}else{const y=($('trendMonthSelect')?.value||iso(n).slice(0,7)).slice(0,4),names=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];for(let m=1;m<=12;m++){const pre=`${y}-${String(m).padStart(2,'0')}`,days=new Date(+y,m,0).getDate(),actual=records.filter(r=>r.date?.startsWith(pre)).reduce((s,r)=>s+F(r.total),0);out.push({label:names[m-1],actual,target:+(t*days).toFixed(2)})}}return out}
-function renderRechartsTrend(records){
-  const el=$('trendChart');
-  if(!el) return;
-  const data=trendData(records||[]);
-  if(el.offsetWidth < 120){ setTimeout(()=>{ try{ renderRechartsTrend(records||[]); }catch(e){} },250); return; }
-  if($('chartSubtitle')) $('chartSubtitle').textContent=currentTrendMode==='day'?'7 hari terakhir • Aktual vs Target Personal':currentTrendMode==='week'?'Minggu terpilih • Aktual vs Target Personal':'Akumulasi bulanan • Aktual vs Target Personal';
-
-  /* Recharts renderer. The SVG fallback below is intentional: if a CDN, React mount,
-     or browser feature fails, the dashboard still shows the actual 7-day data. */
-  try{
-    if(!window.React || !window.ReactDOM || !window.Recharts) throw new Error('Recharts dependency belum tersedia');
-    if(!window.__jkRechartsRoot) window.__jkRechartsRoot=ReactDOM.createRoot(el);
-    const h=React.createElement, R=Recharts;
-    const Tip=({active,payload,label})=>active&&payload&&payload.length?h('div',{style:{background:'var(--gk-card,#fff)',border:'1px solid #dfe9e4',borderRadius:12,padding:'9px 11px',fontSize:10,boxShadow:'0 8px 20px rgba(0,0,0,.08)'}},[
-      h('b',{key:'b',style:{display:'block',marginBottom:4}},label),
-      ...payload.map((p,i)=>h('div',{key:i,style:{color:p.color,fontWeight:800}},`${p.name}: ${fmt(p.value)} kgCO₂e`))
-    ]):null;
-    const chart=h('div',{style:{width:'100%',height:'280px',minHeight:'230px'}},
-      h(R.ResponsiveContainer,{width:'100%',height:'100%',minWidth:220,minHeight:230},
-        h(R.LineChart,{data,margin:{top:14,right:18,left:2,bottom:8}},[
-          h(R.CartesianGrid,{key:'g',strokeDasharray:'3 3',stroke:'rgba(120,145,135,.18)'}),
-          h(R.XAxis,{key:'x',dataKey:'label',tick:{fontSize:9,fill:'#64756f'},axisLine:false,tickLine:false}),
-          h(R.YAxis,{key:'y',tick:{fontSize:9,fill:'#64756f'},axisLine:false,tickLine:false,width:50,allowDecimals:true}),
-          h(R.Tooltip,{key:'t',content:h(Tip)}),
-          h(R.Legend,{key:'l',wrapperStyle:{fontSize:10,paddingTop:4},formatter:v=>v==='actual'?'Aktual':'Target Personal'}),
-          h(R.Line,{key:'a',type:'monotone',dataKey:'actual',name:'actual',stroke:'#16b981',strokeWidth:3,dot:{r:3,strokeWidth:2},activeDot:{r:5},isAnimationActive:true,animationDuration:650,animationEasing:'ease-out'}),
-          h(R.Line,{key:'t',type:'monotone',dataKey:'target',name:'target',stroke:'#64748b',strokeWidth:2,strokeDasharray:'6 5',dot:false,isAnimationActive:true,animationDuration:800,animationEasing:'ease-out'})
-        ])
-      )
-    );
-    window.__jkRechartsRoot.render(chart);
-    if(window.gsap) gsap.fromTo(el,{opacity:.25,y:6},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true});
-    return;
-  }catch(err){
-    console.warn('Recharts render fallback:',err);
-    try{ if(window.__jkRechartsRoot) window.__jkRechartsRoot.unmount(); }catch(e){}
-    window.__jkRechartsRoot=null;
-  }
-
-  /* Guaranteed SVG fallback — same data, same two-series comparison. */
-  const W=Math.max(el.clientWidth||460,320), H=280, pad={l:48,r:18,t:18,b:42};
-  const innerW=W-pad.l-pad.r, innerH=H-pad.t-pad.b;
-  const max=Math.max(1,...data.map(d=>Math.max(Number(d.actual)||0,Number(d.target)||0)));
-  const x=i=>pad.l+(data.length<=1?innerW/2:i*innerW/(data.length-1));
-  const y=v=>pad.t+innerH-(Number(v)||0)/max*innerH;
-  const path=key=>data.map((d,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(d[key]).toFixed(1)}`).join(' ');
-  const grid=Array.from({length:5},(_,i)=>{const yy=pad.t+i*innerH/4;return `<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="rgba(120,145,135,.18)" stroke-dasharray="3 3"/>`;}).join('');
-  const labels=data.map((d,i)=>`<text x="${x(i)}" y="${H-17}" text-anchor="middle" font-size="9" fill="#64756f">${esc(d.label)}</text>`).join('');
-  const dots=data.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.actual)}" r="3" fill="#fff" stroke="#16b981" stroke-width="2"><title>${esc(d.label)} — Aktual: ${fmt(d.actual)} kgCO₂e</title></circle>`).join('');
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="280" role="img" aria-label="Grafik emisi aktual dan target personal 7 hari terakhir" style="display:block;overflow:visible">${grid}<path d="${path('target')}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6 5"/><path d="${path('actual')}" fill="none" stroke="#16b981" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${dots}${labels}<g transform="translate(${pad.l},8)"><circle cx="4" cy="0" r="4" fill="#16b981"/><text x="12" y="4" font-size="9" fill="#64756f">Aktual</text><line x1="62" y1="0" x2="78" y2="0" stroke="#64748b" stroke-width="2" stroke-dasharray="6 5"/><text x="84" y="4" font-size="9" fill="#64756f">Target Personal</text></g></svg>`;
-  if(window.gsap) gsap.fromTo(el,{opacity:.25,y:6},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true});
-}
-window.renderRechartsTrend=renderRechartsTrend;
-function animateDashboardCharts(){if(!window.gsap)return;document.querySelectorAll('#dashboard .dashboard-panel .recharts-wrapper,#dashboard .distribution-panel,#dashboard .trend-panel').forEach(el=>gsap.fromTo(el,{opacity:.55,y:5},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true}))}window.animateDashboardCharts=animateDashboardCharts;
-function updateDailyPersonalizedTip(){const title=$('dailyTipTitle'),text=$('dailyTipText'),icon=$('dailyTipIcon');if(!title||!text)return;const sums={};(state.records||[]).forEach(r=>Object.entries(r.breakdown||{}).forEach(([k,v])=>sums[k]=(sums[k]||0)+F(v)));const top=Object.entries(sums).sort((a,b)=>b[1]-a[1])[0],tips={'Motor':['🚗','Motor adalah kontributor tertinggi','Matikan motor saat tidak digunakan dan evaluasi perjalanan yang bisa digabung.'],'Mobil Pribadi':['🚙','Mobil pribadi paling dominan','Gabungkan rute, gunakan carpool, atau pilih transportasi bersama bila memungkinkan.'],'Laptop / PC':['💻','Perangkat kerja menjadi fokus utama','Aktifkan sleep mode dan matikan perangkat saat tidak digunakan lama.'],'Handphone':['📱','Penggunaan handphone menjadi perhatian','Lepaskan charger setelah baterai penuh dan hindari charging tanpa kebutuhan.'],'AC Bersama':['❄️','AC bersama paling dominan','Gunakan setpoint sekitar 24–26°C dan pastikan ruangan tertutup saat AC aktif.'],'Lampu Bersama':['💡','Lampu bersama menjadi peluang efisiensi','Matikan lampu pada area kosong dan manfaatkan cahaya alami.'],'TV Bersama':['📺','TV bersama menjadi kontributor utama','Matikan perangkat sepenuhnya setelah digunakan, bukan hanya standby.'],'Mobil Perusahaan (Carpool)':['🚌','Mobil perusahaan menjadi fokus','Optimalkan jumlah penumpang dan rute agar perjalanan bersama lebih efisien.']};if(!top){icon.textContent='🌱';title.textContent='Mulai catat aktivitas untuk mendapatkan tips personal.';text.textContent='Tips akan dipilih dari aktivitas dengan kontribusi emisi tertinggi pada riwayat Anda.';return}const t=tips[top[0]]||['🌱',`${top[0]} adalah aktivitas dengan emisi tertinggi`,`Prioritaskan pengurangan pada aktivitas ini (${fmt(top[1])} kgCO₂e).`];icon.textContent=t[0];title.textContent=t[1];text.textContent=t[2]}window.updateDailyPersonalizedTip=updateDailyPersonalizedTip;
-let selectedExportFormat='pdf';
-function selectExportFormat(kind){selectedExportFormat=kind;document.querySelectorAll('.jk-format-btn').forEach(b=>b.classList.toggle('active',b.dataset.format===kind));updateExportPreview()}
-function openExportCenter(){ensureExportDates();selectedExportFormat='pdf';document.querySelectorAll('.jk-format-btn').forEach(b=>b.classList.toggle('active',b.dataset.format==='pdf'));$('teamExportModal').classList.add('show');$('teamExportModal').setAttribute('aria-hidden','false');updateExportPreview()}
-function closeExportCenter(){const m=$('teamExportModal');if(m){m.classList.remove('show');m.setAttribute('aria-hidden','true')}}
-function updateExportPreview(){const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value,rows=start&&end?teamRows(start,end):[],sum=aggregate(rows),total=rows.reduce((s,r)=>s+r.total,0),ind=rows.reduce((s,r)=>s+r.individual,0),shared=rows.reduce((s,r)=>s+r.shared,0);const chosen=[];if($('expSummary')?.checked)chosen.push('Ringkasan KPI');if($('expBreakdown')?.checked)chosen.push('Individual vs Shared');if($('expDaily')?.checked)chosen.push('Detail harian');if($('expCategory')?.checked)chosen.push('Kategori');if($('expTarget')?.checked)chosen.push('Team Target');if($('jkExportPreview'))$('jkExportPreview').innerHTML=`<b>Preview export</b><div>📅 ${start||'—'} s/d ${end||'—'} · 👥 ${sum.length} anggota · ${fmt(total)} kgCO₂e</div><div>Yang dipilih: ${chosen.length?chosen.join(' · '):'<span style="color:#b54a3f">belum ada</span>'}</div>`}
-function confirmExportTeamDashboard(){ensureExportDates();const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value;if(!start||!end||start>end)return toast('⚠️ Periksa periode export.');const opts={summary:$('expSummary')?.checked,breakdown:$('expBreakdown')?.checked,daily:$('expDaily')?.checked,category:$('expCategory')?.checked,target:$('expTarget')?.checked};if(!Object.values(opts).some(Boolean))return toast('⚠️ Pilih minimal satu bagian laporan.');closeExportCenter();exportTeamDashboard(selectedExportFormat,opts)}
-function exportTeamDashboard(kind,opts={summary:true,breakdown:true,daily:true,category:false,target:false}){
-  try{
-    ensureExportDates();
-    const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value;
-    if(!start||!end||start>end)return toast('⚠️ Periksa periode export.');
-    const rows=teamRows(start,end),sum=aggregate(rows),total=rows.reduce((s,r)=>s+r.total,0),ind=rows.reduce((s,r)=>s+r.individual,0),shared=rows.reduce((s,r)=>s+r.shared,0);
-    const title=`Team Dashboard — ${start} s/d ${end}`;
-    const sr=sum.map(r=>[r.userName,r.department,+r.individual.toFixed(2),+r.shared.toFixed(2),+r.total.toFixed(2)]);
-    const cats={individual:0,shared:0};rows.forEach(r=>{cats.individual+=r.individual;cats.shared+=r.shared});
-    const sections=[];
-    if(opts.summary)sections.push(['Ringkasan KPI',[['Total Emisi',total],['Individual Emissions',ind],['Shared Emissions',shared],['Jumlah Anggota',sum.length]]]);
-    if(opts.breakdown)sections.push(['Individual vs Shared',sr]);
-    if(opts.daily)sections.push(['Detail Harian',rows]);
-    if(opts.category)sections.push(['Kategori',[['Individual',cats.individual],['Shared',cats.shared]]]);
-    if(opts.target){const p=$('teamTargetPercent')?.textContent||'0%';sections.push(['Team Target',[['Progress',p],['Target Pengurangan',($('teamReductionGoalInput')?.value||'10')+'%']]])}
-    if(!sections.length)return toast('⚠️ Pilih minimal satu bagian laporan.');
-
-    if(kind==='excel'){
-      if(!window.XLSX) return toast('❌ Library Excel belum termuat. Refresh halaman lalu coba lagi.');
-      const wb=XLSX.utils.book_new();
-      sections.forEach(sec=>{
-        const data=sec[1]; let aoa;
-        if(sec[0]==='Ringkasan KPI'||sec[0]==='Kategori'||sec[0]==='Team Target') aoa=[['Metric','Value'],...data];
-        else if(sec[0]==='Individual vs Shared') aoa=[['Nama','Departemen','Individual','Shared','Total'],...data];
-        else aoa=[['Tanggal','User ID','Nama','Departemen','Individual','Shared','Total'],...data.map(r=>[r.date,r.userId,r.userName,r.department,r.individual,r.shared,r.total])];
-        const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=aoa[0].map((_,i)=>({wch:i<2?24:16}));
-        XLSX.utils.book_append_sheet(wb,ws,sec[0].slice(0,31));
-      });
-      XLSX.writeFile(wb,`Team-Dashboard-${start}-${end}.xlsx`); return toast('✅ Excel berhasil dibuat.');
-    }
-
-    if(kind==='word'){
-      let body=`<h1 style="font-family:Arial">${esc(title)}</h1>`;
-      sections.forEach(sec=>{
-        body+=`<h2 style="font-family:Arial">${esc(sec[0])}</h2><table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-family:Arial;font-size:10px">`;
-        const data=sec[1];
-        if(sec[0]==='Individual vs Shared') body+='<tr><th>Nama</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>'<tr>'+r.map(c=>`<td>${esc(String(c))}</td>`).join('')+'</tr>').join('');
-        else if(sec[0]==='Detail Harian') body+='<tr><th>Tanggal</th><th>User</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.userName)}</td><td>${esc(r.department)}</td><td>${fmt(r.individual)}</td><td>${fmt(r.shared)}</td><td>${fmt(r.total)}</td></tr>`).join('');
-        else body+='<tr><th>Metric</th><th>Value</th></tr>'+data.map(r=>`<tr><td>${esc(String(r[0]))}</td><td>${esc(String(r[1]))}</td></tr>`).join('');
-        body+='</table><br>';
-      });
-      const blob=new Blob(['\ufeff',`<html><head><meta charset="utf-8"></head><body>${body}</body></html>`],{type:'application/msword'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Team-Dashboard-${start}-${end}.doc`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return toast('✅ Word berhasil dibuat.');
-    }
-
-    if(kind==='pdf'){
-      if(!window.jspdf?.jsPDF)return toast('❌ Library PDF belum termuat. Refresh halaman lalu coba lagi.');
-      const doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-      const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight();
-      const drawTable=(headers,body,y)=>{
-        const cols=headers.length, colW=(pageW-20)/cols, rowH=6;
-        doc.setFontSize(7);doc.setFillColor(11,143,100);doc.setTextColor(255,255,255);
-        headers.forEach((h,i)=>doc.rect(10+i*colW,y,colW,rowH,'F'));
-        headers.forEach((h,i)=>doc.text(String(h).slice(0,24),12+i*colW,y+4));
-        y+=rowH;doc.setTextColor(30,40,35);
-        body.forEach(row=>{if(y+rowH>pageH-10){doc.addPage();y=15;}row.forEach((v,i)=>{doc.setDrawColor(220,230,225);doc.rect(10+i*colW,y,colW,rowH);doc.text(String(v??'').slice(0,24),12+i*colW,y+4)});y+=rowH;});return y+5;
-      };
-      doc.setTextColor(25,45,35);doc.setFontSize(17);doc.text('Team Dashboard',10,13);doc.setFontSize(9);doc.text(title,10,19);
-      let y=27;
-      sections.forEach(sec=>{
-        if(y>pageH-25){doc.addPage();y=15;}
-        doc.setFontSize(11);doc.setTextColor(25,45,35);doc.text(sec[0],10,y);y+=5;
-        const data=sec[1];let head,body;
-        if(sec[0]==='Individual vs Shared'){head=['Nama','Departemen','Individual','Shared','Total'];body=data.map(r=>r.map(String));}
-        else if(sec[0]==='Detail Harian'){head=['Tanggal','User','Departemen','Individual','Shared','Total'];body=data.map(r=>[r.date,r.userName,r.department,fmt(r.individual),fmt(r.shared),fmt(r.total)]);}
-        else {head=['Metric','Value'];body=data.map(r=>[String(r[0]),String(r[1])]);}
-        y=drawTable(head,body,y);
-      });
-      doc.save(`Team-Dashboard-${start}-${end}.pdf`);return toast('✅ PDF berhasil dibuat.');
-    }
-    return toast('⚠️ Format export tidak dikenal.');
-  }catch(err){console.error('Export error:',err);toast('❌ Export gagal: '+(err?.message||'kesalahan tidak diketahui'));}
-}
-window.exportTeamDashboard=exportTeamDashboard;
-function wire(){ensureExportDates();document.querySelectorAll('#teamExportModal input[type=checkbox]').forEach(x=>x.addEventListener('change',updateExportPreview));['teamExportStart','teamExportEnd'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateExportPreview)});const g=$('teamReductionGoalInput');if(g){const v=localStorage.getItem(CFG.goalStorageKey);if(v)g.value=v;g.addEventListener('input',()=>{localStorage.setItem(CFG.goalStorageKey,g.value);monitorTeamTargetProgress()})}setTimeout(()=>{monitorTeamTargetProgress();updateDailyPersonalizedTip();try{renderRechartsTrend(state.records||[])}catch(e){}},500);setTimeout(()=>{try{renderRechartsTrend(state.records||[])}catch(e){}},1400);window.addEventListener('resize',()=>{clearTimeout(window.__jkTrendResizeTimer);window.__jkTrendResizeTimer=setTimeout(()=>{try{renderRechartsTrend(state.records||[])}catch(e){}},180)})}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
-})();
-</script>
 <script id="achievement-badges-js-v1">
 (function(){
   'use strict';
@@ -9306,5 +9107,769 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       return r;
     };
   }
+})();
+</script>
+
+<!-- ============================================================
+     NEW FEATURE BUNDLE v1 — additive, defensive, non-breaking:
+     1) GSAP-animated chart transitions (Daily/Weekly/Monthly)
+     2) Team Target progress monitor + custom milestone toasts
+     3) Flexible Export (PDF / Word / Excel) incl. individual vs
+        shared breakdown table for the selected 30-day window
+     4-5) 7-day Actual vs Personal Daily Target dual-line chart
+        (built with Canvas — this app is vanilla JS, not React,
+        so Recharts itself can't run here; this is the same
+        "smooth dual-line trend" visual using the app's own
+        canvas charting approach)
+     6) Theme-aware contrast safety pass for Team Pulse hero
+        and Category Breakdown legends
+     7) Daily personalized sustainability tips
+     ============================================================ -->
+<style id="jk-newfeatures-v1-style">
+/* ---- Team Target card ---- */
+.team-target-card{ background:linear-gradient(135deg,#f7fbf9,#eef6f1); border:1px solid #dcece2; border-radius:18px; padding:18px 20px; margin-bottom:16px; }
+.ttc-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.ttc-kicker{ font-size:10px; font-weight:900; letter-spacing:1px; color:var(--esg-primary); }
+.ttc-head h4{ margin:4px 0 0; font-size:16px; font-weight:800; color:var(--esg-dark); }
+.ttc-pct{ font-size:24px; font-weight:900; color:var(--esg-primary); white-space:nowrap; }
+.ttc-bar{ margin-top:12px; height:10px; border-radius:6px; background:#e4decc; overflow:hidden; }
+.ttc-bar-fill{ height:100%; border-radius:6px; background:linear-gradient(90deg,#4b7a5b,#a9c4a6); transition:width .6s cubic-bezier(.16,1,.3,1); }
+.ttc-bar-fill.milestone-95{ background:linear-gradient(90deg,#2f80ed,#6fb1f5); }
+.ttc-bar-fill.milestone-100{ background:linear-gradient(90deg,#0a8f5c,#5eead4); }
+.ttc-sub{ margin:10px 0 0; font-size:12.5px; font-weight:600; color:var(--text-muted); }
+html[data-theme="dark"] .team-target-card{ background:linear-gradient(135deg,#1c2921,#202e26)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] .ttc-head h4{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .ttc-sub{ color:var(--gk-muted)!important; }
+html[data-theme="dark"] .ttc-bar{ background:rgba(255,255,255,.08)!important; }
+
+/* ---- Milestone toast (distinct from the default #toast) ---- */
+.jk-milestone-toast-wrap{ position:fixed; top:18px; right:18px; z-index:99999; display:flex; flex-direction:column; gap:10px; pointer-events:none; }
+.jk-milestone-toast{ pointer-events:auto; min-width:270px; max-width:340px; background:var(--card-bg); border-radius:16px; padding:14px 16px; box-shadow:0 16px 40px rgba(0,0,0,.18); border-left:5px solid var(--esg-primary); display:flex; gap:12px; align-items:flex-start; transform:translateX(120%); opacity:0; }
+.jk-milestone-toast .jk-mt-ico{ font-size:24px; line-height:1; }
+.jk-milestone-toast .jk-mt-body b{ display:block; font-size:13.5px; color:var(--esg-dark); font-weight:800; margin-bottom:2px; }
+.jk-milestone-toast .jk-mt-body span{ font-size:12px; color:var(--text-muted); font-weight:600; line-height:1.4; }
+html[data-theme="dark"] .jk-milestone-toast{ background:var(--gk-card)!important; }
+html[data-theme="dark"] .jk-milestone-toast .jk-mt-body b{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .jk-milestone-toast .jk-mt-body span{ color:var(--gk-muted)!important; }
+
+/* ---- Weekly dual-line chart + tip panel layout ---- */
+.dashboard-grid-2{ display:grid; grid-template-columns:1.3fr 1fr; gap:20px; margin-bottom:24px; }
+@media(max-width:900px){ .dashboard-grid-2{ grid-template-columns:1fr; } }
+.weekly-legend{ display:flex; gap:16px; margin-bottom:10px; }
+.weekly-legend span{ font-size:11.5px; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+.weekly-legend .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.dot-actual{ background:#6c9576; }
+.dot-target{ background:#d977a7; }
+.sustainability-tip-box{ background:linear-gradient(135deg,#f7fbf9,#eef6f1); border:1px solid #dcece2; border-radius:16px; padding:18px; display:flex; gap:14px; align-items:flex-start; }
+.sustainability-tip-box .tip-ico{ font-size:30px; line-height:1; flex-shrink:0; }
+.sustainability-tip-box .tip-cat{ font-size:10.5px; font-weight:900; letter-spacing:.5px; color:var(--esg-primary); text-transform:uppercase; margin-bottom:4px; }
+.sustainability-tip-box .tip-text{ font-size:13.5px; font-weight:600; color:var(--esg-dark); line-height:1.55; margin:0; }
+html[data-theme="dark"] .sustainability-tip-box{ background:linear-gradient(135deg,#1c2921,#202e26)!important; border-color:var(--gk-line)!important; }
+html[data-theme="dark"] .sustainability-tip-box .tip-text{ color:var(--gk-ink)!important; }
+
+/* ---- Export modal ---- */
+.jk-export-overlay{ position:fixed; inset:0; background:rgba(20,25,20,.55); backdrop-filter:blur(3px); z-index:9998; display:none; align-items:center; justify-content:center; padding:20px; }
+.jk-export-overlay.show{ display:flex; }
+.jk-export-modal{ background:var(--card-bg); border-radius:22px; padding:26px; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; box-shadow:0 30px 70px rgba(0,0,0,.3); }
+.jk-export-modal h3{ margin:0 0 4px; font-size:19px; font-weight:900; color:var(--esg-dark); }
+.jk-export-modal p.jk-sub{ margin:0 0 18px; font-size:12.5px; color:var(--text-muted); font-weight:600; }
+.jk-export-section{ margin-bottom:16px; }
+.jk-export-section > label.jk-lbl{ display:block; font-size:11px; font-weight:900; letter-spacing:.5px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; }
+.jk-format-row{ display:flex; gap:8px; }
+.jk-format-row button{ flex:1; padding:12px 8px; border-radius:12px; border:1.5px solid #e4decc; background:#f7f4ec; font-weight:800; font-size:12.5px; color:var(--text-muted); }
+.jk-format-row button.active{ border-color:var(--esg-primary); background:var(--esg-light); color:var(--esg-dark); }
+.jk-check-row{ display:flex; align-items:center; gap:10px; padding:9px 4px; font-size:13px; font-weight:700; color:var(--esg-dark); cursor:pointer; }
+.jk-check-row input{ width:17px; height:17px; accent-color:var(--esg-primary); cursor:pointer; }
+.jk-export-actions{ display:flex; gap:10px; margin-top:20px; }
+.jk-export-actions button{ flex:1; padding:13px; border-radius:14px; font-weight:800; font-size:14px; }
+.jk-export-actions .jk-cancel{ background:#f0ebdd; color:var(--text-muted); }
+.jk-export-actions .jk-confirm{ background:var(--esg-gradient); color:#fff; }
+html[data-theme="dark"] .jk-export-modal{ background:var(--gk-card)!important; }
+html[data-theme="dark"] .jk-export-modal h3{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .jk-check-row{ color:var(--gk-ink)!important; }
+html[data-theme="dark"] .jk-format-row button{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; color:var(--gk-muted)!important; }
+html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; border-color:rgba(0,230,160,.4)!important; background:rgba(0,230,160,.1)!important; }
+</style>
+
+<div class="jk-export-overlay" id="jkExportOverlay">
+  <div class="jk-export-modal">
+    <h3>📤 Export Team Dashboard</h3>
+    <p class="jk-sub">Pilih format dan bagian data yang ingin diexport — fleksibel sesuai kebutuhan.</p>
+
+    <div class="jk-export-section">
+      <label class="jk-lbl">Format File</label>
+      <div class="jk-format-row" id="jkFormatRow">
+        <button type="button" data-fmt="pdf" class="active" onclick="jkSetExportFormat('pdf')">📄 PDF</button>
+        <button type="button" data-fmt="word" onclick="jkSetExportFormat('word')">📝 Word</button>
+        <button type="button" data-fmt="excel" onclick="jkSetExportFormat('excel')">📊 Excel</button>
+      </div>
+    </div>
+
+    <div class="jk-export-section">
+      <label class="jk-lbl">Bagian yang Disertakan</label>
+      <label class="jk-check-row"><input type="checkbox" id="jkOptSummary" checked> Ringkasan Total Tim</label>
+      <label class="jk-check-row"><input type="checkbox" id="jkOptIndivShared" checked> Breakdown Individual vs Shared (30 Hari Terakhir)</label>
+      <label class="jk-check-row"><input type="checkbox" id="jkOptCategory" checked> Category Breakdown</label>
+      <label class="jk-check-row"><input type="checkbox" id="jkOptRanking" checked> Ranking Anggota Tim</label>
+    </div>
+
+    <div class="jk-export-actions">
+      <button type="button" class="jk-cancel" onclick="closeExportModal()">Batal</button>
+      <button type="button" class="jk-confirm" onclick="jkRunExport()">⬇️ Export Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<script id="jk-newfeatures-v1-script">
+(function(){
+  'use strict';
+
+  function ready(fn){ if(document.readyState!=='loading') setTimeout(fn,60); else document.addEventListener('DOMContentLoaded',()=>setTimeout(fn,60)); }
+  function safe(fn){ try{ return fn(); }catch(e){ console.warn('[jk-newfeatures]',e); return null; } }
+
+  /* ============================================================
+     1) GSAP-ANIMATED CHART TRANSITIONS
+     Wrap the existing drawChart(canvas, records) so switching
+     Daily / Weekly / Monthly (and any data refresh) tweens the
+     line/area smoothly instead of snapping to the new values.
+     ============================================================ */
+  var hasGSAP = typeof window.gsap !== 'undefined';
+  var origDrawChart = window.drawChart;
+  var lastTrendSignature = null;
+  var trendAnimState = { values: null };
+
+  function computeTrendData(records){
+    // Mirrors the exact logic inside drawChart() so we can animate it.
+    var trendData = [], subtitleText = '';
+    var selectedMonthStr = document.getElementById('trendMonthSelect') ? document.getElementById('trendMonthSelect').value : '';
+    if(!selectedMonthStr) return null;
+    if (window.currentTrendMode === 'day') {
+      subtitleText = 'Perbandingan Harian Bulan ' + selectedMonthStr;
+      var parts = selectedMonthStr.split('-').map(Number); var yr=parts[0], mo=parts[1];
+      var daysInMonth = new Date(yr, mo, 0).getDate();
+      for(var d=1; d<=daysInMonth; d++){
+        var dStr = String(d).padStart(2,'0');
+        var found = records.find(function(r){ return r.date === (selectedMonthStr+'-'+dStr); });
+        trendData.push({ label:String(d), total: found ? found.total : 0 });
+      }
+    } else if (window.currentTrendMode === 'week') {
+      var weekSel = document.getElementById('trendWeekSelect');
+      var weekNum = parseInt(weekSel ? weekSel.value : 1);
+      subtitleText = 'Tren Harian Minggu ke-'+weekNum+' ('+selectedMonthStr+')';
+      var p2 = selectedMonthStr.split('-').map(Number); var yr2=p2[0], mo2=p2[1];
+      var startDay=(weekNum-1)*7+1, endDay=Math.min(weekNum*7, new Date(yr2,mo2,0).getDate());
+      for(var d2=startDay; d2<=endDay; d2++){
+        var dStr2=String(d2).padStart(2,'0');
+        var found2=records.find(function(r){ return r.date===(selectedMonthStr+'-'+dStr2); });
+        trendData.push({ label:String(d2), total: found2?found2.total:0 });
+      }
+    } else if (window.currentTrendMode === 'month') {
+      subtitleText='Akumulasi Bulanan';
+      var yr3 = selectedMonthStr.split('-')[0];
+      var monthsList=[{m:'01',name:'Jan'},{m:'02',name:'Feb'},{m:'03',name:'Mar'},{m:'04',name:'Apr'},{m:'05',name:'Mei'},{m:'06',name:'Jun'},{m:'07',name:'Jul'},{m:'08',name:'Agu'},{m:'09',name:'Sep'},{m:'10',name:'Okt'},{m:'11',name:'Nov'},{m:'12',name:'Des'}];
+      monthsList.forEach(function(item){
+        var monthTotal = records.filter(function(r){ return r.date && r.date.startsWith(yr3+'-'+item.m); }).reduce(function(s,r){ return s + (parseFloat(r.total)||0); },0);
+        trendData.push({ label:item.name, total: monthTotal });
+      });
+    } else { return null; }
+    return { trendData: trendData, subtitleText: subtitleText };
+  }
+
+  function paintTrendFrame(canvas, trendData, subtitleText){
+    // Re-implements the drawing portion of the original drawChart, but
+    // driven by an already-computed (and possibly tweened) trendData array.
+    var ctx=canvas.getContext('2d'), w=canvas.clientWidth||400, h=canvas.clientHeight||280, dpr=window.devicePixelRatio||1;
+    canvas.width=w*dpr; canvas.height=h*dpr; ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h); ctx.strokeStyle='#f0ebdd';
+    for(var i=0;i<5;i++){ var gy=20+i*(h-70)/4; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(w,gy); ctx.stroke(); }
+    var subEl = document.getElementById('chartSubtitle'); if(subEl) subEl.textContent = subtitleText;
+    var max=Math.max.apply(null, trendData.map(function(r){return r.total;}).concat([1]));
+    var chartWidth=w-40, startX=20;
+    function x(i){ return trendData.length===1 ? w/2 : startX+(i*(chartWidth/(trendData.length-1))); }
+    function y(v){ return (h-50)-(v/max*(h-90)); }
+    var grad=ctx.createLinearGradient(0,0,0,h); grad.addColorStop(0,'rgba(108,149,118,0.4)'); grad.addColorStop(1,'rgba(108,149,118,0)');
+    ctx.beginPath(); ctx.moveTo(startX,h-50); trendData.forEach(function(r,i){ ctx.lineTo(x(i),y(r.total)); }); ctx.lineTo(startX+chartWidth,h-50); ctx.fillStyle=grad; ctx.fill();
+    ctx.strokeStyle='#6c9576'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.beginPath();
+    trendData.forEach(function(r,i){ i ? ctx.lineTo(x(i),y(r.total)) : ctx.moveTo(x(i),y(r.total)); }); ctx.stroke();
+    trendData.forEach(function(r,i){
+      var px=x(i), py=y(r.total);
+      if(r.total>0 || trendData.length<=15){
+        ctx.fillStyle='white'; ctx.strokeStyle='#6c9576'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(px,py,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        if(trendData.length<=15 && r.total>0){ ctx.fillStyle='#211e17'; ctx.font='bold 10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign='center'; ctx.fillText((r.total).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2}), px, py-10); }
+      }
+      if(trendData.length<=15 || i%Math.ceil(trendData.length/10)===0 || i===trendData.length-1){ ctx.fillStyle='#6b6656'; ctx.font='10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign='center'; ctx.fillText(r.label, px, h-16); }
+    });
+  }
+
+  window.drawChart = function(canvas, records){
+    if(typeof origDrawChart !== 'function' || !canvas) return;
+    var computed = safe(function(){ return computeTrendData(records); });
+    if(!computed){ origDrawChart(canvas, records); return; }
+    var signature = window.currentTrendMode + '|' + computed.trendData.length;
+    var newValues = computed.trendData.map(function(r){ return r.total; });
+
+    if(!hasGSAP || !trendAnimState.values || lastTrendSignature !== signature){
+      // Different view shape (day/week/month switch) → smooth fade+rise instead of value-morph.
+      trendAnimState.values = newValues.slice();
+      lastTrendSignature = signature;
+      paintTrendFrame(canvas, computed.trendData, computed.subtitleText);
+      if(hasGSAP){
+        gsap.fromTo(canvas, { opacity:0, y:10 }, { opacity:1, y:0, duration:0.5, ease:'power2.out' });
+      }
+      return;
+    }
+
+    // Same view, values updated → tween each point smoothly.
+    var startValues = trendAnimState.values.slice();
+    var proxy = { t:0 };
+    gsap.to(proxy, {
+      t:1, duration:0.6, ease:'power2.out',
+      onUpdate:function(){
+        var frameData = computed.trendData.map(function(r,i){
+          var sv = startValues[i]!==undefined ? startValues[i] : r.total;
+          return { label:r.label, total: sv + (r.total-sv)*proxy.t };
+        });
+        paintTrendFrame(canvas, frameData, computed.subtitleText);
+      },
+      onComplete:function(){ trendAnimState.values = newValues.slice(); }
+    });
+  };
+
+  // Also animate the trend-mode pill switch itself for extra feedback.
+  var origSetTrendMode = window.setTrendMode;
+  if(typeof origSetTrendMode === 'function'){
+    window.setTrendMode = function(mode){
+      var r = origSetTrendMode.apply(this, arguments);
+      if(hasGSAP){
+        var canvas = document.getElementById('trendChart');
+        if(canvas) gsap.fromTo(canvas, { opacity:0.35 }, { opacity:1, duration:0.45, ease:'power1.out' });
+      }
+      return r;
+    };
+  }
+
+  /* ============================================================
+     4/5) 7-DAY "ACTUAL vs PERSONAL DAILY TARGET" DUAL-LINE CHART
+     (Canvas-based — see note at top of this block re: Recharts)
+     ============================================================ */
+  var DAILY_TARGET_KEY = 'jk_daily_personal_target';
+  function getDailyPersonalTarget(){
+    var stored = safe(function(){ return parseFloat(localStorage.getItem(DAILY_TARGET_KEY)); });
+    if(stored && isFinite(stored) && stored>0) return stored;
+    // Sensible default: 90% of the user's own historical daily average (encourages steady improvement),
+    // falling back to a flat 5.0 kgCO2e/day if there isn't enough history yet.
+    var recs = (window.state && Array.isArray(state.records)) ? state.records.filter(function(r){ return r.total>0; }) : [];
+    if(recs.length>=3){
+      var avg = recs.reduce(function(s,r){ return s+(parseFloat(r.total)||0); },0)/recs.length;
+      return Math.max(0.5, avg*0.9);
+    }
+    return 5.0;
+  }
+  window.setDailyPersonalTarget = function(v){
+    v = parseFloat(v); if(!isFinite(v)||v<=0) return;
+    safe(function(){ localStorage.setItem(DAILY_TARGET_KEY, String(v)); });
+    if(document.getElementById('dashboard') && document.getElementById('dashboard').classList.contains('active')) drawWeeklyDualChart();
+  };
+
+  function last7DayStrings(){
+    var out=[]; var d=new Date();
+    for(var i=6;i>=0;i--){ var dt=new Date(d); dt.setDate(d.getDate()-i); dt.setMinutes(dt.getMinutes()-dt.getTimezoneOffset()); out.push(dt.toISOString().slice(0,10)); }
+    return out;
+  }
+
+  var weeklyChartAnim = { values:null };
+  function drawWeeklyDualFrame(canvas, days, actualValues, targetValues){
+    var ctx=canvas.getContext('2d'), w=canvas.clientWidth||400, h=canvas.clientHeight||220, dpr=window.devicePixelRatio||1;
+    canvas.width=w*dpr; canvas.height=h*dpr; ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='#f0ebdd';
+    for(var i=0;i<4;i++){ var gy=16+i*(h-56)/3; ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(w,gy); ctx.stroke(); }
+    var maxVal = Math.max.apply(null, actualValues.concat(targetValues).concat([1]));
+    var chartWidth=w-36, startX=18;
+    function x(i){ return days.length===1? w/2 : startX+(i*(chartWidth/(days.length-1))); }
+    function y(v){ return (h-40)-(v/maxVal*(h-70)); }
+    function drawLine(vals, color, dashed){
+      ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.setLineDash(dashed?[6,4]:[]);
+      ctx.beginPath(); vals.forEach(function(v,i){ i? ctx.lineTo(x(i),y(v)) : ctx.moveTo(x(i),y(v)); }); ctx.stroke();
+      ctx.setLineDash([]);
+      vals.forEach(function(v,i){ ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x(i),y(v),3.2,0,Math.PI*2); ctx.fill(); });
+    }
+    drawLine(targetValues, '#d977a7', true);
+    drawLine(actualValues, '#6c9576', false);
+    days.forEach(function(dStr,i){
+      var label = dStr.slice(8,10)+'/'+dStr.slice(5,7);
+      ctx.fillStyle='#6b6656'; ctx.font='10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign='center'; ctx.fillText(label, x(i), h-14);
+    });
+  }
+
+  window.drawWeeklyDualChart = function(){
+    var canvas = document.getElementById('weeklyTrendChart');
+    if(!canvas || !window.state) return;
+    var days = last7DayStrings();
+    var target = getDailyPersonalTarget();
+    var actual = days.map(function(dStr){
+      var rec = state.records.find(function(r){ return r.date===dStr; });
+      return rec ? (parseFloat(rec.total)||0) : 0;
+    });
+    var targetVals = days.map(function(){ return target; });
+
+    if(!hasGSAP || !weeklyChartAnim.values){
+      weeklyChartAnim.values = actual.slice();
+      drawWeeklyDualFrame(canvas, days, actual, targetVals);
+      return;
+    }
+    var start = weeklyChartAnim.values.slice();
+    var proxy = { t:0 };
+    gsap.to(proxy, { t:1, duration:0.6, ease:'power2.out', onUpdate:function(){
+      var frame = actual.map(function(v,i){ var sv=start[i]!==undefined?start[i]:v; return sv+(v-sv)*proxy.t; });
+      drawWeeklyDualFrame(canvas, days, frame, targetVals);
+    }, onComplete:function(){ weeklyChartAnim.values = actual.slice(); } });
+  };
+
+  /* ============================================================
+     7) DAILY PERSONALIZED SUSTAINABILITY TIPS
+     Based on the user's single highest-emission activity today
+     (falls back to their highest all-time activity if no data
+     is logged yet today).
+     ============================================================ */
+  var TIPS_DB = {
+    'Motor': { ico:'🏍️', tips:[
+      'Coba gabung dengan rekan kerja untuk carpool motor 2x minggu ini — bisa memangkas emisi motor hingga 30%.',
+      'Servis rutin dan tekanan ban yang pas bisa menghemat bahan bakar sekaligus menurunkan emisi motor kamu.',
+      'Untuk jarak di bawah 2km, coba jalan kaki atau sepeda — sehat dan nol emisi.'
+    ]},
+    'Mobil Pribadi': { ico:'🚗', tips:[
+      'Kombinasikan beberapa keperluan dalam satu perjalanan mobil agar tidak bolak-balik.',
+      'Coba carpool dengan tim satu departemen untuk perjalanan rutin ke kantor.',
+      'Matikan mesin saat berhenti lebih dari 1 menit — idling menyumbang emisi tanpa manfaat.'
+    ]},
+    'Laptop / PC': { ico:'💻', tips:[
+      'Aktifkan mode hemat daya dan matikan layar saat laptop tidak dipakai lebih dari 5 menit.',
+      'Cabut charger setelah baterai penuh — daya siaga (phantom load) tetap menyumbang emisi.',
+      'Turunkan kecerahan layar 20% — dampaknya kecil per hari, besar dalam sebulan.'
+    ]},
+    'Handphone': { ico:'📱', tips:[
+      'Gunakan mode gelap dan kurangi notifikasi push untuk menghemat daya charging harian.',
+      'Cabut charger handphone segera setelah penuh untuk mengurangi konsumsi daya siaga.'
+    ]},
+    'AC Bersama': { ico:'❄️', tips:[
+      'Atur suhu AC bersama di 24-25°C — tiap kenaikan 1°C bisa menghemat hingga 6% energi.',
+      'Tutup pintu/jendela ruangan ber-AC agar pendinginan tidak terbuang sia-sia.'
+    ]},
+    'Lampu Bersama': { ico:'💡', tips:[
+      'Matikan lampu ruangan bersama saat jam istirahat siang atau ruangan kosong.',
+      'Usulkan penggantian ke lampu LED hemat energi jika area kerja kamu masih pakai lampu konvensional.'
+    ]},
+    'TV Bersama': { ico:'📺', tips:[
+      'Matikan TV ruang bersama sepenuhnya (bukan standby) saat tidak ada yang menonton.'
+    ]},
+    'Mobil Perusahaan (Carpool)': { ico:'🚐', tips:[
+      'Gabungkan jadwal dengan rekan satu rute agar carpool perusahaan lebih optimal dan efisien.'
+    ]},
+    'default': { ico:'🌱', tips:[
+      'Mulai catat aktivitas harianmu untuk mendapatkan tips personalisasi berdasarkan pola emisi kamu.',
+      'Setiap aksi kecil — dari mematikan lampu hingga carpool — terakumulasi jadi dampak besar untuk tim.'
+    ]}
+  };
+
+  function dayIndexSeed(){
+    var d = new Date(); return d.getFullYear()*372 + d.getMonth()*31 + d.getDate();
+  }
+
+  window.renderSustainabilityTip = function(){
+    var box = document.getElementById('sustainabilityTipBox');
+    if(!box || !window.state) return;
+    var todayRec = state.records.find(function(r){ return r.date === (typeof todayISO==='function'?todayISO():''); });
+    var breakdown = (todayRec && todayRec.breakdown) || {};
+    var entries = Object.entries(breakdown).filter(function(e){ return (parseFloat(e[1])||0) > 0; });
+
+    if(!entries.length){
+      // Fall back to all-time highest category so the tip is still relevant.
+      var agg = {};
+      (state.records||[]).forEach(function(r){
+        Object.entries(r.breakdown||{}).forEach(function(e){ agg[e[0]] = (agg[e[0]]||0) + (parseFloat(e[1])||0); });
+      });
+      entries = Object.entries(agg).filter(function(e){ return e[1]>0; });
+    }
+    entries.sort(function(a,b){ return b[1]-a[1]; });
+    var topCategory = entries.length ? entries[0][0] : 'default';
+    var def = TIPS_DB[topCategory] || TIPS_DB['default'];
+    var tip = def.tips[dayIndexSeed() % def.tips.length];
+
+    box.innerHTML =
+      '<div class="tip-ico">'+def.ico+'</div>'+
+      '<div>'+
+        '<div class="tip-cat">'+(topCategory==='default' ? 'Mulai Perjalananmu' : 'Fokus: '+topCategory)+'</div>'+
+        '<p class="tip-text">'+tip+'</p>'+
+      '</div>';
+  };
+
+  /* ============================================================
+     2) TEAM TARGET PROGRESS MONITOR + MILESTONE TOASTS
+     Monthly goal = reduce this month's team total emission vs
+     last month's, by a configurable % (default 10%). Fires a
+     one-time custom toast per month at 80% / 95% / 100%.
+     ============================================================ */
+  var TEAM_TARGET_PCT_KEY = 'jk_team_target_pct';
+  var TEAM_TARGET_SEEN_KEY = 'jk_team_target_milestones_seen';
+  function getTeamTargetPct(){
+    var v = safe(function(){ return parseFloat(localStorage.getItem(TEAM_TARGET_PCT_KEY)); });
+    return (v && isFinite(v) && v>0) ? v : 10; // default: reduce 10% vs last month
+  }
+  window.setTeamTargetPct = function(pct){
+    pct = parseFloat(pct); if(!isFinite(pct)||pct<=0) return;
+    safe(function(){ localStorage.setItem(TEAM_TARGET_PCT_KEY, String(pct)); });
+  };
+
+  function showMilestoneToast(icon, title, message){
+    var wrap = document.getElementById('jkMilestoneToastWrap');
+    if(!wrap){
+      wrap = document.createElement('div');
+      wrap.id = 'jkMilestoneToastWrap';
+      wrap.className = 'jk-milestone-toast-wrap';
+      document.body.appendChild(wrap);
+    }
+    var el = document.createElement('div');
+    el.className = 'jk-milestone-toast';
+    el.innerHTML = '<div class="jk-mt-ico">'+icon+'</div><div class="jk-mt-body"><b>'+title+'</b><span>'+message+'</span></div>';
+    wrap.appendChild(el);
+    if(hasGSAP){
+      gsap.to(el, { x:0, opacity:1, duration:0.5, ease:'back.out(1.6)' });
+      gsap.to(el, { opacity:0, x:60, duration:0.4, delay:5, ease:'power1.in', onComplete:function(){ el.remove(); } });
+    } else {
+      el.style.transform='translateX(0)'; el.style.opacity='1';
+      setTimeout(function(){ el.remove(); }, 5400);
+    }
+  }
+
+  function monthKey(dateStr){ return (dateStr||'').slice(0,7); }
+
+  window.checkTeamTargetProgress = function(currentMonthTotal, prevMonthTotal){
+    var card = document.getElementById('teamTargetCard');
+    var pctEl = document.getElementById('ttcPct');
+    var barEl = document.getElementById('ttcBarFill');
+    var subEl = document.getElementById('ttcSub');
+    var targetPct = getTeamTargetPct();
+    if(!card) return;
+
+    if(!prevMonthTotal || prevMonthTotal<=0){
+      if(subEl) subEl.textContent = 'Belum ada data bulan lalu untuk dibandingkan — progres akan muncul setelah 1 bulan penuh data.';
+      if(pctEl) pctEl.textContent = '—';
+      if(barEl) barEl.style.width = '0%';
+      return;
+    }
+
+    var reductionGoalKg = prevMonthTotal * (targetPct/100);
+    var actualReductionKg = prevMonthTotal - currentMonthTotal;
+    var progressPct = reductionGoalKg>0 ? Math.max(0, (actualReductionKg/reductionGoalKg)*100) : 0;
+    var clamped = Math.min(100, progressPct);
+
+    if(pctEl) pctEl.textContent = Math.round(progressPct) + '%';
+    if(barEl){
+      barEl.style.width = clamped + '%';
+      barEl.classList.toggle('milestone-95', progressPct>=95 && progressPct<100);
+      barEl.classList.toggle('milestone-100', progressPct>=100);
+    }
+    if(subEl){
+      subEl.textContent = 'Target: turunkan emisi tim '+targetPct+'% dibanding bulan lalu ('+
+        (typeof fmt==='function'?fmt(prevMonthTotal):prevMonthTotal.toFixed(2))+' → '+
+        (typeof fmt==='function'?fmt(currentMonthTotal):currentMonthTotal.toFixed(2))+' kgCO₂e).';
+    }
+
+    // One-time-per-month milestone toasts, tracked in localStorage.
+    var seen = safe(function(){ return JSON.parse(localStorage.getItem(TEAM_TARGET_SEEN_KEY)||'{}'); }) || {};
+    var mk = monthKey(typeof todayISO==='function'?todayISO():new Date().toISOString());
+    seen[mk] = seen[mk] || {};
+    var thresholds = [ [100,'🏆','Target Tercapai!','Tim berhasil mencapai 100% target reduksi emisi bulan ini. Kerja luar biasa!'],
+                        [95,'🚀','Hampir Sampai!','Tim sudah 95% menuju target reduksi emisi bulanan — sedikit lagi!'],
+                        [80,'🌱','Progres Bagus','Tim sudah mencapai 80% dari target reduksi emisi bulan ini.'] ];
+    thresholds.forEach(function(t){
+      var threshold=t[0], icon=t[1], title=t[2], msg=t[3];
+      if(progressPct>=threshold && !seen[mk][threshold]){
+        seen[mk][threshold] = true;
+        showMilestoneToast(icon, title, msg);
+      }
+    });
+    safe(function(){ localStorage.setItem(TEAM_TARGET_SEEN_KEY, JSON.stringify(seen)); });
+  };
+
+  // Hook into renderTeamDashboardView to compute current vs previous month totals
+  // from the same teamDetailedRecords the rest of the Team Dashboard already uses.
+  var origRenderTeamDashboardView = window.renderTeamDashboardView;
+  if(typeof origRenderTeamDashboardView === 'function'){
+    window.renderTeamDashboardView = function(){
+      var r = origRenderTeamDashboardView.apply(this, arguments);
+      safe(function(){
+        var recs = Array.isArray(window.teamDetailedRecords) ? window.teamDetailedRecords : [];
+        var today = typeof todayISO==='function' ? todayISO() : new Date().toISOString().slice(0,10);
+        var curMonth = today.slice(0,7);
+        var prevDate = new Date(today); prevDate.setMonth(prevDate.getMonth()-1);
+        var prevMonth = prevDate.toISOString().slice(0,7);
+        function monthTotal(mKey){
+          return recs.filter(function(rec){ var ds=rec.tanggalEmisi||rec.date; return ds && ds.startsWith(mKey); })
+            .reduce(function(s,rec){
+              var v = (parseFloat(rec.motor)||0)+(parseFloat(rec.mobil)||0)+(parseFloat(rec.laptop)||0)+(parseFloat(rec.handphone)||0)+
+                      (parseFloat(rec.ac)||0)+(parseFloat(rec.lampu)||0)+(parseFloat(rec.tv)||0)+(parseFloat(rec.pool)||0);
+              return s+v;
+            },0);
+        }
+        window.checkTeamTargetProgress(monthTotal(curMonth), monthTotal(prevMonth));
+      });
+      return r;
+    };
+  }
+
+  /* ============================================================
+     3) FLEXIBLE EXPORT — PDF / WORD / EXCEL
+     Includes a configurable summary breakdown table of
+     individual vs shared emissions for the last 30 days.
+     ============================================================ */
+  var jkExportFormat = 'pdf';
+  window.jkSetExportFormat = function(fmt){
+    jkExportFormat = fmt;
+    document.querySelectorAll('#jkFormatRow button').forEach(function(b){ b.classList.toggle('active', b.dataset.fmt===fmt); });
+  };
+  window.openExportModal = function(){
+    var overlay = document.getElementById('jkExportOverlay');
+    if(overlay) overlay.classList.add('show');
+  };
+  window.closeExportModal = function(){
+    var overlay = document.getElementById('jkExportOverlay');
+    if(overlay) overlay.classList.remove('show');
+  };
+
+  function last30DaysRange(){
+    var end = typeof todayISO==='function' ? todayISO() : new Date().toISOString().slice(0,10);
+    var start = new Date(end); start.setDate(start.getDate()-29);
+    start.setMinutes(start.getMinutes()-start.getTimezoneOffset());
+    return { start: start.toISOString().slice(0,10), end: end };
+  }
+
+  function buildIndivSharedTable(){
+    // Per-member individual vs shared emissions for the selected (last 30 days) period,
+    // built from teamDetailedRecords — same source used elsewhere in Team Dashboard.
+    var range = last30DaysRange();
+    var recs = Array.isArray(window.teamDetailedRecords) ? window.teamDetailedRecords : [];
+    var byUser = {};
+    recs.forEach(function(rec){
+      var ds = rec.tanggalEmisi || rec.date;
+      if(!ds || ds < range.start || ds > range.end) return;
+      var uid = String(rec.userId||'').trim(); if(!uid) return;
+      if(!byUser[uid]) byUser[uid] = { name: rec.userName||uid, dept: rec.department||'Lainnya', individual:0, shared:0 };
+      var indiv = (parseFloat(rec.motor)||0)+(parseFloat(rec.mobil)||0)+(parseFloat(rec.laptop)||0)+(parseFloat(rec.handphone)||0);
+      var shared = (parseFloat(rec.ac)||0)+(parseFloat(rec.lampu)||0)+(parseFloat(rec.tv)||0)+(parseFloat(rec.pool)||0);
+      byUser[uid].name = rec.userName || byUser[uid].name;
+      byUser[uid].dept = rec.department || byUser[uid].dept;
+      byUser[uid].individual += indiv;
+      byUser[uid].shared += shared;
+    });
+    var rows = Object.values(byUser).map(function(u){
+      return { name:u.name, dept:u.dept, individual:u.individual, shared:u.shared, total:u.individual+u.shared };
+    }).sort(function(a,b){ return b.total-a.total; });
+    return { range: range, rows: rows };
+  }
+
+  function buildExportPayload(){
+    var opts = {
+      summary: document.getElementById('jkOptSummary').checked,
+      indivShared: document.getElementById('jkOptIndivShared').checked,
+      category: document.getElementById('jkOptCategory').checked,
+      ranking: document.getElementById('jkOptRanking').checked
+    };
+    var payload = { title:'Team Carbon Dashboard — JejakKarbonKu', generatedAt: new Date().toLocaleString('id-ID'), opts:opts };
+    if(opts.summary){
+      payload.summary = {
+        total: document.getElementById('td_total') ? document.getElementById('td_total').textContent.replace(/[^0-9,.-]/g,'') : '0',
+        indiv: document.getElementById('td_indiv') ? document.getElementById('td_indiv').textContent : '0',
+        shared: document.getElementById('td_shared') ? document.getElementById('td_shared').textContent : '0',
+        users: document.getElementById('td_user_count') ? document.getElementById('td_user_count').textContent : ''
+      };
+    }
+    if(opts.indivShared) payload.indivSharedTable = buildIndivSharedTable();
+    if(opts.category){
+      payload.category = Array.from(document.querySelectorAll('#td_category_list > div')).map(function(row){
+        var label = row.querySelector('div'); return row.textContent.trim();
+      });
+    }
+    if(opts.ranking){
+      payload.ranking = Array.from(document.querySelectorAll('#td_top_ranking > div')).slice(0,50).map(function(row){ return row.textContent.replace(/\s+/g,' ').trim(); });
+    }
+    return payload;
+  }
+
+  window.jkRunExport = function(){
+    var payload = safe(buildExportPayload);
+    if(!payload) return;
+    if(jkExportFormat === 'pdf') jkExportPDF(payload);
+    else if(jkExportFormat === 'word') jkExportWord(payload);
+    else jkExportExcel(payload);
+    closeExportModal();
+    if(typeof toast==='function') toast('✅ Export '+jkExportFormat.toUpperCase()+' berhasil disiapkan!');
+  };
+
+  function jkExportPDF(payload){
+    if(typeof window.jspdf === 'undefined'){ if(typeof toast==='function') toast('⚠️ Modul PDF belum siap, coba lagi.'); return; }
+    var doc = new window.jspdf.jsPDF();
+    doc.setFontSize(16); doc.text(payload.title, 14, 18);
+    doc.setFontSize(9); doc.setTextColor(120); doc.text('Dibuat: '+payload.generatedAt, 14, 24);
+    var y = 34;
+    if(payload.summary){
+      doc.setFontSize(12); doc.setTextColor(20); doc.text('Ringkasan Total Tim', 14, y); y+=6;
+      doc.autoTable({ startY:y, theme:'grid', head:[['Total Emisi (kgCO₂e)','Individual (kg)','Shared (kg)','Anggota']],
+        body:[[payload.summary.total, payload.summary.indiv, payload.summary.shared, payload.summary.users]], styles:{fontSize:9} });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+    if(payload.indivSharedTable){
+      doc.setFontSize(12); doc.text('Breakdown Individual vs Shared — 30 Hari Terakhir ('+payload.indivSharedTable.range.start+' s/d '+payload.indivSharedTable.range.end+')', 14, y); y+=6;
+      doc.autoTable({ startY:y, theme:'striped', head:[['Nama','Departemen','Individual (kg)','Shared (kg)','Total (kg)']],
+        body: payload.indivSharedTable.rows.map(function(r){ return [r.name, r.dept, r.individual.toFixed(2), r.shared.toFixed(2), r.total.toFixed(2)]; }),
+        styles:{fontSize:8.5} });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+    if(payload.category && payload.category.length){
+      doc.setFontSize(12); doc.text('Category Breakdown', 14, y); y+=6;
+      doc.autoTable({ startY:y, theme:'grid', head:[['Kategori']], body: payload.category.map(function(c){ return [c]; }), styles:{fontSize:8.5} });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+    if(payload.ranking && payload.ranking.length){
+      if(y>250){ doc.addPage(); y=18; }
+      doc.setFontSize(12); doc.text('Ranking Anggota Tim', 14, y); y+=6;
+      doc.autoTable({ startY:y, theme:'grid', head:[['Anggota']], body: payload.ranking.map(function(r){ return [r]; }), styles:{fontSize:8} });
+    }
+    doc.save('JejakKarbonKu_Team_Export.pdf');
+  }
+
+  function payloadToHTMLTable(payload){
+    var html = '<h2>'+payload.title+'</h2><p style="color:#666;font-size:12px;">Dibuat: '+payload.generatedAt+'</p>';
+    if(payload.summary){
+      html += '<h3>Ringkasan Total Tim</h3><table border="1" cellpadding="6" style="border-collapse:collapse;"><tr><th>Total Emisi</th><th>Individual</th><th>Shared</th><th>Anggota</th></tr>'+
+        '<tr><td>'+payload.summary.total+'</td><td>'+payload.summary.indiv+'</td><td>'+payload.summary.shared+'</td><td>'+payload.summary.users+'</td></tr></table>';
+    }
+    if(payload.indivSharedTable){
+      html += '<h3>Breakdown Individual vs Shared — 30 Hari Terakhir ('+payload.indivSharedTable.range.start+' s/d '+payload.indivSharedTable.range.end+')</h3>'+
+        '<table border="1" cellpadding="6" style="border-collapse:collapse;"><tr><th>Nama</th><th>Departemen</th><th>Individual (kg)</th><th>Shared (kg)</th><th>Total (kg)</th></tr>'+
+        payload.indivSharedTable.rows.map(function(r){ return '<tr><td>'+r.name+'</td><td>'+r.dept+'</td><td>'+r.individual.toFixed(2)+'</td><td>'+r.shared.toFixed(2)+'</td><td>'+r.total.toFixed(2)+'</td></tr>'; }).join('')+
+        '</table>';
+    }
+    if(payload.category && payload.category.length){
+      html += '<h3>Category Breakdown</h3><ul>'+payload.category.map(function(c){ return '<li>'+c+'</li>'; }).join('')+'</ul>';
+    }
+    if(payload.ranking && payload.ranking.length){
+      html += '<h3>Ranking Anggota Tim</h3><ol>'+payload.ranking.map(function(r){ return '<li>'+r+'</li>'; }).join('')+'</ol>';
+    }
+    return html;
+  }
+
+  function downloadBlob(content, mime, filename){
+    var blob = new Blob([content], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+  }
+
+  function jkExportWord(payload){
+    var body = payloadToHTMLTable(payload);
+    var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
+      '<head><meta charset="utf-8"><title>Export</title></head><body style="font-family:Calibri,Arial,sans-serif;">'+body+'</body></html>';
+    downloadBlob(html, 'application/msword', 'JejakKarbonKu_Team_Export.doc');
+  }
+
+  function jkExportExcel(payload){
+    var body = payloadToHTMLTable(payload);
+    var html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">'+
+      '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>'+
+      '<x:Name>Team Export</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->'+
+      '</head><body>'+body+'</body></html>';
+    downloadBlob(html, 'application/vnd.ms-excel', 'JejakKarbonKu_Team_Export.xls');
+  }
+
+  /* ============================================================
+     6) THEME-AWARE CONTRAST SAFETY PASS
+     Scans Team Pulse hero + Category Breakdown legend text and
+     corrects any element whose text color is too close in
+     luminance to its own background (i.e. dark-on-dark or
+     light-on-light) for the active theme.
+     ============================================================ */
+  function relLuminance(rgb){
+    // rgb = [r,g,b] 0-255
+    var a = rgb.map(function(v){
+      v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+    });
+    return 0.2126*a[0] + 0.7152*a[1] + 0.0722*a[2];
+  }
+  function parseRGB(str){
+    var m = /rgba?\(([^)]+)\)/.exec(str||'');
+    if(!m) return null;
+    var parts = m[1].split(',').map(function(s){ return parseFloat(s); });
+    if(parts.length<3 || parts.some(isNaN)) return null;
+    return parts.slice(0,3);
+  }
+  function effectiveBg(el){
+    var node = el;
+    for(var i=0;i<6 && node;i++){
+      var bg = getComputedStyle(node).backgroundColor;
+      var rgb = parseRGB(bg);
+      if(rgb && !(bg.indexOf('rgba')===0 && /,\s*0\s*\)/.test(bg))) return rgb;
+      node = node.parentElement;
+    }
+    return [255,255,255];
+  }
+  function enforceContrastSafety(){
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var safeColor = isDark ? '#f1ede0' : '#211e17';
+    var selectors = ['.team-hero *', '.category-legend b', '.category-legend strong', '.category-legend span',
+                      '#td_category_list *', '.team-target-card *'];
+    document.querySelectorAll(selectors.join(',')).forEach(function(el){
+      if(!el || !(el.offsetParent || el === document.body)) { /* still check even if hidden ancestor */ }
+      var style = getComputedStyle(el);
+      var fg = parseRGB(style.color);
+      if(!fg) return;
+      var bg = effectiveBg(el);
+      var lumFg = relLuminance(fg), lumBg = relLuminance(bg);
+      var contrast = (Math.max(lumFg,lumBg)+0.05) / (Math.min(lumFg,lumBg)+0.05);
+      if(contrast < 2.2){ // both landing "dark" or both "light" relative to each other
+        el.style.color = safeColor;
+      }
+    });
+  }
+  window.enforceContrastSafety = enforceContrastSafety;
+
+  var origToggleTheme = window.toggleTheme;
+  if(typeof origToggleTheme === 'function'){
+    window.toggleTheme = function(){
+      var r = origToggleTheme.apply(this, arguments);
+      setTimeout(enforceContrastSafety, 80);
+      return r;
+    };
+  }
+
+  /* ============================================================
+     Hook everything into renderDashboard() without touching it
+     ============================================================ */
+  var origRenderDashboard = window.renderDashboard;
+  if(typeof origRenderDashboard === 'function'){
+    window.renderDashboard = function(){
+      var r = origRenderDashboard.apply(this, arguments);
+      safe(window.drawWeeklyDualChart);
+      safe(window.renderSustainabilityTip);
+      setTimeout(enforceContrastSafety, 60);
+      return r;
+    };
+  }
+
+  var origNavigateToPage = window.navigateToPage;
+  if(typeof origNavigateToPage === 'function'){
+    window.navigateToPage = function(page){
+      var r = origNavigateToPage.apply(this, arguments);
+      if(page==='dashboard'){ safe(window.drawWeeklyDualChart); safe(window.renderSustainabilityTip); }
+      setTimeout(enforceContrastSafety, 120);
+      return r;
+    };
+  }
+
+  ready(function(){
+    safe(window.drawWeeklyDualChart);
+    safe(window.renderSustainabilityTip);
+    setTimeout(enforceContrastSafety, 500);
+  });
+
 })();
 </script>
