@@ -9087,7 +9087,7 @@ html[data-theme="dark"] .achv-badge .achv-sub{ color:var(--gk-muted)!important; 
 
 
 <style id="export-center-and-chart-fix">
-#trendChart{height:280px!important;width:100%!important;min-height:230px;display:block;position:relative}
+#trendChart{height:280px!important;width:100%!important;min-height:280px;display:block;position:relative;overflow:visible!important} #trendChart>div{width:100%!important;height:280px!important;min-height:280px!important}
 #trendChart .recharts-responsive-container{width:100%!important;height:100%!important}
 .jk-export-modal{display:none;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;padding:18px}
 .jk-export-modal.show{display:flex}
@@ -9112,22 +9112,55 @@ function personalTarget(){const n=todayISO(),d=new Date();d.setDate(d.getDate()-
 function trendData(records){const mode=currentTrendMode||'day',t=personalTarget(),n=new Date(),out=[];if(mode==='day'){for(let i=6;i>=0;i--){const d=new Date(n);d.setDate(n.getDate()-i);const k=iso(d),r=records.find(x=>x.date===k);out.push({label:k.slice(5),actual:F(r?.total),target:+t.toFixed(2)})}}else if(mode==='week'){const sel=$('trendMonthSelect')?.value||iso(n).slice(0,7),w=+$('trendWeekSelect')?.value||1,[y,m]=sel.split('-').map(Number),st=(w-1)*7+1,en=Math.min(w*7,new Date(y,m,0).getDate());for(let d=st;d<=en;d++){const k=`${sel}-${String(d).padStart(2,'0')}`,r=records.find(x=>x.date===k);out.push({label:String(d),actual:F(r?.total),target:+t.toFixed(2)})}}else{const y=($('trendMonthSelect')?.value||iso(n).slice(0,7)).slice(0,4),names=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];for(let m=1;m<=12;m++){const pre=`${y}-${String(m).padStart(2,'0')}`,days=new Date(+y,m,0).getDate(),actual=records.filter(r=>r.date?.startsWith(pre)).reduce((s,r)=>s+F(r.total),0);out.push({label:names[m-1],actual,target:+(t*days).toFixed(2)})}}return out}
 function renderRechartsTrend(records){
   const el=$('trendChart');
-  if(!el || !window.React || !window.ReactDOM || !window.Recharts) return;
-  const h=React.createElement, R=Recharts, data=trendData(records||[]);
-  const Tip=({active,payload,label})=>active&&payload?.length?h('div',{style:{background:'var(--gk-card,#fff)',border:'1px solid #dfe9e4',borderRadius:12,padding:'8px 10px',fontSize:10,boxShadow:'0 8px 20px rgba(0,0,0,.08)'}},[h('b',{key:'b'},label),...payload.map((p,i)=>h('div',{key:i,style:{color:p.color,fontWeight:800}},`${p.name}: ${fmt(p.value)} kgCO₂e`))]):null;
-  const chart=h(R.ResponsiveContainer,{width:'100%',height:'100%',minWidth:240,minHeight:230},h(R.LineChart,{data,margin:{top:12,right:16,left:4,bottom:4}},[
-    h(R.CartesianGrid,{key:'g',strokeDasharray:'3 3',stroke:'rgba(120,145,135,.18)'}),
-    h(R.XAxis,{key:'x',dataKey:'label',tick:{fontSize:9},axisLine:false,tickLine:false}),
-    h(R.YAxis,{key:'y',tick:{fontSize:9},axisLine:false,tickLine:false,width:48}),
-    h(R.Tooltip,{key:'t',content:h(Tip)}),
-    h(R.Legend,{key:'l',wrapperStyle:{fontSize:10},formatter:v=>v==='actual'?'Aktual':'Target Personal'}),
-    h(R.Line,{key:'a',type:'monotone',dataKey:'actual',name:'actual',stroke:'#16b981',strokeWidth:3,dot:{r:3},activeDot:{r:5},animationDuration:650}),
-    h(R.Line,{key:'t',type:'monotone',dataKey:'target',name:'target',stroke:'#64748b',strokeWidth:2,strokeDasharray:'6 5',dot:false,animationDuration:800})
-  ]));
-  if(!window.__jkRechartsRoot) window.__jkRechartsRoot=ReactDOM.createRoot(el);
-  window.__jkRechartsRoot.render(chart);
-  if(window.gsap) gsap.fromTo(el,{opacity:.35,y:6},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true});
+  if(!el) return;
+  const data=trendData(records||[]);
+  if(el.offsetWidth < 120){ setTimeout(()=>{ try{ renderRechartsTrend(records||[]); }catch(e){} },250); return; }
   if($('chartSubtitle')) $('chartSubtitle').textContent=currentTrendMode==='day'?'7 hari terakhir • Aktual vs Target Personal':currentTrendMode==='week'?'Minggu terpilih • Aktual vs Target Personal':'Akumulasi bulanan • Aktual vs Target Personal';
+
+  /* Recharts renderer. The SVG fallback below is intentional: if a CDN, React mount,
+     or browser feature fails, the dashboard still shows the actual 7-day data. */
+  try{
+    if(!window.React || !window.ReactDOM || !window.Recharts) throw new Error('Recharts dependency belum tersedia');
+    if(!window.__jkRechartsRoot) window.__jkRechartsRoot=ReactDOM.createRoot(el);
+    const h=React.createElement, R=Recharts;
+    const Tip=({active,payload,label})=>active&&payload&&payload.length?h('div',{style:{background:'var(--gk-card,#fff)',border:'1px solid #dfe9e4',borderRadius:12,padding:'9px 11px',fontSize:10,boxShadow:'0 8px 20px rgba(0,0,0,.08)'}},[
+      h('b',{key:'b',style:{display:'block',marginBottom:4}},label),
+      ...payload.map((p,i)=>h('div',{key:i,style:{color:p.color,fontWeight:800}},`${p.name}: ${fmt(p.value)} kgCO₂e`))
+    ]):null;
+    const chart=h('div',{style:{width:'100%',height:'280px',minHeight:'230px'}},
+      h(R.ResponsiveContainer,{width:'100%',height:'100%',minWidth:220,minHeight:230},
+        h(R.LineChart,{data,margin:{top:14,right:18,left:2,bottom:8}},[
+          h(R.CartesianGrid,{key:'g',strokeDasharray:'3 3',stroke:'rgba(120,145,135,.18)'}),
+          h(R.XAxis,{key:'x',dataKey:'label',tick:{fontSize:9,fill:'#64756f'},axisLine:false,tickLine:false}),
+          h(R.YAxis,{key:'y',tick:{fontSize:9,fill:'#64756f'},axisLine:false,tickLine:false,width:50,allowDecimals:true}),
+          h(R.Tooltip,{key:'t',content:h(Tip)}),
+          h(R.Legend,{key:'l',wrapperStyle:{fontSize:10,paddingTop:4},formatter:v=>v==='actual'?'Aktual':'Target Personal'}),
+          h(R.Line,{key:'a',type:'monotone',dataKey:'actual',name:'actual',stroke:'#16b981',strokeWidth:3,dot:{r:3,strokeWidth:2},activeDot:{r:5},isAnimationActive:true,animationDuration:650,animationEasing:'ease-out'}),
+          h(R.Line,{key:'t',type:'monotone',dataKey:'target',name:'target',stroke:'#64748b',strokeWidth:2,strokeDasharray:'6 5',dot:false,isAnimationActive:true,animationDuration:800,animationEasing:'ease-out'})
+        ])
+      )
+    );
+    window.__jkRechartsRoot.render(chart);
+    if(window.gsap) gsap.fromTo(el,{opacity:.25,y:6},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true});
+    return;
+  }catch(err){
+    console.warn('Recharts render fallback:',err);
+    try{ if(window.__jkRechartsRoot) window.__jkRechartsRoot.unmount(); }catch(e){}
+    window.__jkRechartsRoot=null;
+  }
+
+  /* Guaranteed SVG fallback — same data, same two-series comparison. */
+  const W=Math.max(el.clientWidth||460,320), H=280, pad={l:48,r:18,t:18,b:42};
+  const innerW=W-pad.l-pad.r, innerH=H-pad.t-pad.b;
+  const max=Math.max(1,...data.map(d=>Math.max(Number(d.actual)||0,Number(d.target)||0)));
+  const x=i=>pad.l+(data.length<=1?innerW/2:i*innerW/(data.length-1));
+  const y=v=>pad.t+innerH-(Number(v)||0)/max*innerH;
+  const path=key=>data.map((d,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(d[key]).toFixed(1)}`).join(' ');
+  const grid=Array.from({length:5},(_,i)=>{const yy=pad.t+i*innerH/4;return `<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="rgba(120,145,135,.18)" stroke-dasharray="3 3"/>`;}).join('');
+  const labels=data.map((d,i)=>`<text x="${x(i)}" y="${H-17}" text-anchor="middle" font-size="9" fill="#64756f">${esc(d.label)}</text>`).join('');
+  const dots=data.map((d,i)=>`<circle cx="${x(i)}" cy="${y(d.actual)}" r="3" fill="#fff" stroke="#16b981" stroke-width="2"><title>${esc(d.label)} — Aktual: ${fmt(d.actual)} kgCO₂e</title></circle>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="280" role="img" aria-label="Grafik emisi aktual dan target personal 7 hari terakhir" style="display:block;overflow:visible">${grid}<path d="${path('target')}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6 5"/><path d="${path('actual')}" fill="none" stroke="#16b981" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${dots}${labels}<g transform="translate(${pad.l},8)"><circle cx="4" cy="0" r="4" fill="#16b981"/><text x="12" y="4" font-size="9" fill="#64756f">Aktual</text><line x1="62" y1="0" x2="78" y2="0" stroke="#64748b" stroke-width="2" stroke-dasharray="6 5"/><text x="84" y="4" font-size="9" fill="#64756f">Target Personal</text></g></svg>`;
+  if(window.gsap) gsap.fromTo(el,{opacity:.25,y:6},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true});
 }
 window.renderRechartsTrend=renderRechartsTrend;
 function animateDashboardCharts(){if(!window.gsap)return;document.querySelectorAll('#dashboard .dashboard-panel .recharts-wrapper,#dashboard .distribution-panel,#dashboard .trend-panel').forEach(el=>gsap.fromTo(el,{opacity:.55,y:5},{opacity:1,y:0,duration:.45,ease:'power2.out',overwrite:true}))}window.animateDashboardCharts=animateDashboardCharts;
@@ -9138,11 +9171,81 @@ function openExportCenter(){ensureExportDates();selectedExportFormat='pdf';docum
 function closeExportCenter(){const m=$('teamExportModal');if(m){m.classList.remove('show');m.setAttribute('aria-hidden','true')}}
 function updateExportPreview(){const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value,rows=start&&end?teamRows(start,end):[],sum=aggregate(rows),total=rows.reduce((s,r)=>s+r.total,0),ind=rows.reduce((s,r)=>s+r.individual,0),shared=rows.reduce((s,r)=>s+r.shared,0);const chosen=[];if($('expSummary')?.checked)chosen.push('Ringkasan KPI');if($('expBreakdown')?.checked)chosen.push('Individual vs Shared');if($('expDaily')?.checked)chosen.push('Detail harian');if($('expCategory')?.checked)chosen.push('Kategori');if($('expTarget')?.checked)chosen.push('Team Target');if($('jkExportPreview'))$('jkExportPreview').innerHTML=`<b>Preview export</b><div>📅 ${start||'—'} s/d ${end||'—'} · 👥 ${sum.length} anggota · ${fmt(total)} kgCO₂e</div><div>Yang dipilih: ${chosen.length?chosen.join(' · '):'<span style="color:#b54a3f">belum ada</span>'}</div>`}
 function confirmExportTeamDashboard(){ensureExportDates();const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value;if(!start||!end||start>end)return toast('⚠️ Periksa periode export.');const opts={summary:$('expSummary')?.checked,breakdown:$('expBreakdown')?.checked,daily:$('expDaily')?.checked,category:$('expCategory')?.checked,target:$('expTarget')?.checked};if(!Object.values(opts).some(Boolean))return toast('⚠️ Pilih minimal satu bagian laporan.');closeExportCenter();exportTeamDashboard(selectedExportFormat,opts)}
-function exportTeamDashboard(kind,opts={summary:true,breakdown:true,daily:true,category:false,target:false}){ensureExportDates();const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value;if(!start||!end||start>end)return toast('⚠️ Periksa periode export.');const rows=teamRows(start,end),sum=aggregate(rows),total=rows.reduce((s,r)=>s+r.total,0),ind=rows.reduce((s,r)=>s+r.individual,0),shared=rows.reduce((s,r)=>s+r.shared,0),title=`Team Dashboard — ${start} s/d ${end}`,sr=sum.map(r=>[r.userName,r.department,+r.individual.toFixed(2),+r.shared.toFixed(2),+r.total.toFixed(2)]);const cats={};rows.forEach(r=>{cats.individual=(cats.individual||0)+r.individual;cats.shared=(cats.shared||0)+r.shared});const sections=[];if(opts.summary)sections.push(['Ringkasan KPI',[['Total Emisi',total],['Individual Emissions',ind],['Shared Emissions',shared],['Jumlah Anggota',sum.length]]]);if(opts.breakdown)sections.push(['Individual vs Shared',sr]);if(opts.daily)sections.push(['Detail Harian',rows]);if(opts.category)sections.push(['Kategori',[['Individual',cats.individual||0],['Shared',cats.shared||0]]]);if(opts.target){const p=$('teamTargetPercent')?.textContent||'0%';sections.push(['Team Target',[['Progress',p],['Target Pengurangan',($('teamReductionGoalInput')?.value||'10')+'%']]])}
-if(kind==='excel'){if(!window.XLSX)return toast('❌ Library Excel belum termuat.');const wb=XLSX.utils.book_new();sections.forEach((sec,i)=>{let data=sec[1];let aoa;if(sec[0]==='Ringkasan KPI'||sec[0]==='Kategori'||sec[0]==='Team Target')aoa=[['Metric','Value'],...data];else if(sec[0]==='Individual vs Shared')aoa=[['Nama','Departemen','Individual','Shared','Total'],...data];else aoa=[['Tanggal','User ID','Nama','Departemen','Individual','Shared','Total'],...data.map(r=>[r.date,r.userId,r.userName,r.department,r.individual,r.shared,r.total])];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(aoa),sec[0].slice(0,31))});XLSX.writeFile(wb,`Team-Dashboard-${start}-${end}.xlsx`);return toast('✅ Excel berhasil dibuat sesuai pilihan.')}
-if(kind==='word'){let body=`<h1>${title}</h1>`;sections.forEach(sec=>{body+=`<h2>${esc(sec[0])}</h2><table border="1" cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-family:Arial;font-size:10px">`;let data=sec[1];if(sec[0]==='Individual vs Shared'){body+='<tr><th>Nama</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>'<tr>'+r.map(c=>`<td>${esc(String(c))}</td>`).join('')+'</tr>').join('')}else if(sec[0]==='Detail Harian'){body+='<tr><th>Tanggal</th><th>User</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>`<tr><td>${r.date}</td><td>${esc(r.userName)}</td><td>${esc(r.department)}</td><td>${fmt(r.individual)}</td><td>${fmt(r.shared)}</td><td>${fmt(r.total)}</td></tr>`).join('')}else{body+='<tr><th>Metric</th><th>Value</th></tr>'+data.map(r=>`<tr><td>${esc(String(r[0]))}</td><td>${esc(String(r[1]))}</td></tr>`).join('')}body+='</table>'});const blob=new Blob(['﻿',`<html><head><meta charset="utf-8"></head><body>${body}</body></html>`],{type:'application/msword'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Team-Dashboard-${start}-${end}.doc`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return toast('✅ Word berhasil dibuat sesuai pilihan.')}
-if(kind==='pdf'){if(!window.jspdf?.jsPDF)return toast('❌ Library PDF belum termuat.');const doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});doc.setFontSize(17);doc.text('Team Dashboard',14,15);doc.setFontSize(9);doc.text(title,14,21);let y=27;sections.forEach(sec=>{doc.setFontSize(12);doc.text(sec[0],14,y);y+=5;const data=sec[1];let head,body;if(sec[0]==='Individual vs Shared'){head=[['Nama','Departemen','Individual','Shared','Total']];body=data.map(r=>r.map(String))}else if(sec[0]==='Detail Harian'){head=[['Tanggal','User','Departemen','Individual','Shared','Total']];body=data.map(r=>[r.date,r.userName,r.department,fmt(r.individual),fmt(r.shared),fmt(r.total)])}else{head=[['Metric','Value']];body=data.map(r=>[String(r[0]),String(r[1])])}doc.autoTable({startY:y,head,body,styles:{fontSize:7}});y=doc.lastAutoTable.finalY+8;if(y>180){doc.addPage();y=18}});doc.save(`Team-Dashboard-${start}-${end}.pdf`);return toast('✅ PDF berhasil dibuat sesuai pilihan.')}}window.exportTeamDashboard=exportTeamDashboard;
-function wire(){ensureExportDates();document.querySelectorAll('#teamExportModal input[type=checkbox]').forEach(x=>x.addEventListener('change',updateExportPreview));['teamExportStart','teamExportEnd'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateExportPreview)});const g=$('teamReductionGoalInput');if(g){const v=localStorage.getItem(CFG.goalStorageKey);if(v)g.value=v;g.addEventListener('input',()=>{localStorage.setItem(CFG.goalStorageKey,g.value);monitorTeamTargetProgress()})}setTimeout(()=>{monitorTeamTargetProgress();updateDailyPersonalizedTip()},500)}
+function exportTeamDashboard(kind,opts={summary:true,breakdown:true,daily:true,category:false,target:false}){
+  try{
+    ensureExportDates();
+    const start=$('teamExportStart')?.value,end=$('teamExportEnd')?.value;
+    if(!start||!end||start>end)return toast('⚠️ Periksa periode export.');
+    const rows=teamRows(start,end),sum=aggregate(rows),total=rows.reduce((s,r)=>s+r.total,0),ind=rows.reduce((s,r)=>s+r.individual,0),shared=rows.reduce((s,r)=>s+r.shared,0);
+    const title=`Team Dashboard — ${start} s/d ${end}`;
+    const sr=sum.map(r=>[r.userName,r.department,+r.individual.toFixed(2),+r.shared.toFixed(2),+r.total.toFixed(2)]);
+    const cats={individual:0,shared:0};rows.forEach(r=>{cats.individual+=r.individual;cats.shared+=r.shared});
+    const sections=[];
+    if(opts.summary)sections.push(['Ringkasan KPI',[['Total Emisi',total],['Individual Emissions',ind],['Shared Emissions',shared],['Jumlah Anggota',sum.length]]]);
+    if(opts.breakdown)sections.push(['Individual vs Shared',sr]);
+    if(opts.daily)sections.push(['Detail Harian',rows]);
+    if(opts.category)sections.push(['Kategori',[['Individual',cats.individual],['Shared',cats.shared]]]);
+    if(opts.target){const p=$('teamTargetPercent')?.textContent||'0%';sections.push(['Team Target',[['Progress',p],['Target Pengurangan',($('teamReductionGoalInput')?.value||'10')+'%']]])}
+    if(!sections.length)return toast('⚠️ Pilih minimal satu bagian laporan.');
+
+    if(kind==='excel'){
+      if(!window.XLSX) return toast('❌ Library Excel belum termuat. Refresh halaman lalu coba lagi.');
+      const wb=XLSX.utils.book_new();
+      sections.forEach(sec=>{
+        const data=sec[1]; let aoa;
+        if(sec[0]==='Ringkasan KPI'||sec[0]==='Kategori'||sec[0]==='Team Target') aoa=[['Metric','Value'],...data];
+        else if(sec[0]==='Individual vs Shared') aoa=[['Nama','Departemen','Individual','Shared','Total'],...data];
+        else aoa=[['Tanggal','User ID','Nama','Departemen','Individual','Shared','Total'],...data.map(r=>[r.date,r.userId,r.userName,r.department,r.individual,r.shared,r.total])];
+        const ws=XLSX.utils.aoa_to_sheet(aoa); ws['!cols']=aoa[0].map((_,i)=>({wch:i<2?24:16}));
+        XLSX.utils.book_append_sheet(wb,ws,sec[0].slice(0,31));
+      });
+      XLSX.writeFile(wb,`Team-Dashboard-${start}-${end}.xlsx`); return toast('✅ Excel berhasil dibuat.');
+    }
+
+    if(kind==='word'){
+      let body=`<h1 style="font-family:Arial">${esc(title)}</h1>`;
+      sections.forEach(sec=>{
+        body+=`<h2 style="font-family:Arial">${esc(sec[0])}</h2><table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-family:Arial;font-size:10px">`;
+        const data=sec[1];
+        if(sec[0]==='Individual vs Shared') body+='<tr><th>Nama</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>'<tr>'+r.map(c=>`<td>${esc(String(c))}</td>`).join('')+'</tr>').join('');
+        else if(sec[0]==='Detail Harian') body+='<tr><th>Tanggal</th><th>User</th><th>Departemen</th><th>Individual</th><th>Shared</th><th>Total</th></tr>'+data.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.userName)}</td><td>${esc(r.department)}</td><td>${fmt(r.individual)}</td><td>${fmt(r.shared)}</td><td>${fmt(r.total)}</td></tr>`).join('');
+        else body+='<tr><th>Metric</th><th>Value</th></tr>'+data.map(r=>`<tr><td>${esc(String(r[0]))}</td><td>${esc(String(r[1]))}</td></tr>`).join('');
+        body+='</table><br>';
+      });
+      const blob=new Blob(['\ufeff',`<html><head><meta charset="utf-8"></head><body>${body}</body></html>`],{type:'application/msword'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Team-Dashboard-${start}-${end}.doc`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return toast('✅ Word berhasil dibuat.');
+    }
+
+    if(kind==='pdf'){
+      if(!window.jspdf?.jsPDF)return toast('❌ Library PDF belum termuat. Refresh halaman lalu coba lagi.');
+      const doc=new jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+      const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight();
+      const drawTable=(headers,body,y)=>{
+        const cols=headers.length, colW=(pageW-20)/cols, rowH=6;
+        doc.setFontSize(7);doc.setFillColor(11,143,100);doc.setTextColor(255,255,255);
+        headers.forEach((h,i)=>doc.rect(10+i*colW,y,colW,rowH,'F'));
+        headers.forEach((h,i)=>doc.text(String(h).slice(0,24),12+i*colW,y+4));
+        y+=rowH;doc.setTextColor(30,40,35);
+        body.forEach(row=>{if(y+rowH>pageH-10){doc.addPage();y=15;}row.forEach((v,i)=>{doc.setDrawColor(220,230,225);doc.rect(10+i*colW,y,colW,rowH);doc.text(String(v??'').slice(0,24),12+i*colW,y+4)});y+=rowH;});return y+5;
+      };
+      doc.setTextColor(25,45,35);doc.setFontSize(17);doc.text('Team Dashboard',10,13);doc.setFontSize(9);doc.text(title,10,19);
+      let y=27;
+      sections.forEach(sec=>{
+        if(y>pageH-25){doc.addPage();y=15;}
+        doc.setFontSize(11);doc.setTextColor(25,45,35);doc.text(sec[0],10,y);y+=5;
+        const data=sec[1];let head,body;
+        if(sec[0]==='Individual vs Shared'){head=['Nama','Departemen','Individual','Shared','Total'];body=data.map(r=>r.map(String));}
+        else if(sec[0]==='Detail Harian'){head=['Tanggal','User','Departemen','Individual','Shared','Total'];body=data.map(r=>[r.date,r.userName,r.department,fmt(r.individual),fmt(r.shared),fmt(r.total)]);}
+        else {head=['Metric','Value'];body=data.map(r=>[String(r[0]),String(r[1])]);}
+        y=drawTable(head,body,y);
+      });
+      doc.save(`Team-Dashboard-${start}-${end}.pdf`);return toast('✅ PDF berhasil dibuat.');
+    }
+    return toast('⚠️ Format export tidak dikenal.');
+  }catch(err){console.error('Export error:',err);toast('❌ Export gagal: '+(err?.message||'kesalahan tidak diketahui'));}
+}
+window.exportTeamDashboard=exportTeamDashboard;
+function wire(){ensureExportDates();document.querySelectorAll('#teamExportModal input[type=checkbox]').forEach(x=>x.addEventListener('change',updateExportPreview));['teamExportStart','teamExportEnd'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateExportPreview)});const g=$('teamReductionGoalInput');if(g){const v=localStorage.getItem(CFG.goalStorageKey);if(v)g.value=v;g.addEventListener('input',()=>{localStorage.setItem(CFG.goalStorageKey,g.value);monitorTeamTargetProgress()})}setTimeout(()=>{monitorTeamTargetProgress();updateDailyPersonalizedTip();try{renderRechartsTrend(state.records||[])}catch(e){}},500);setTimeout(()=>{try{renderRechartsTrend(state.records||[])}catch(e){}},1400);window.addEventListener('resize',()=>{clearTimeout(window.__jkTrendResizeTimer);window.__jkTrendResizeTimer=setTimeout(()=>{try{renderRechartsTrend(state.records||[])}catch(e){}},180)})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);else wire();
 })();
 </script>
