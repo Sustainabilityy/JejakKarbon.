@@ -9189,6 +9189,21 @@ html[data-theme="dark"] .jk-export-modal h3{ color:var(--gk-ink)!important; }
 html[data-theme="dark"] .jk-check-row{ color:var(--gk-ink)!important; }
 html[data-theme="dark"] .jk-format-row button{ background:rgba(255,255,255,.06)!important; border-color:var(--gk-line)!important; color:var(--gk-muted)!important; }
 html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; border-color:rgba(0,230,160,.4)!important; background:rgba(0,230,160,.1)!important; }
+
+/* ---- Interactive chart hover tooltip ---- */
+#trendChart, #weeklyTrendChart{ cursor:crosshair; }
+.jk-chart-tooltip{
+  position:fixed; z-index:99999; pointer-events:none; opacity:0;
+  background:var(--esg-dark); color:#fff; padding:10px 13px; border-radius:12px;
+  font-size:12px; font-weight:700; box-shadow:0 14px 32px rgba(0,0,0,.25);
+  min-width:130px; transition:opacity .15s ease;
+}
+.jk-chart-tooltip.show{ opacity:1; }
+.jk-chart-tooltip .jk-tt-label{ font-size:10.5px; font-weight:900; letter-spacing:.4px; color:#a9c4a6; margin-bottom:5px; text-transform:uppercase; }
+.jk-chart-tooltip .jk-tt-value{ display:flex; align-items:center; gap:7px; font-size:13px; margin-top:3px; }
+.jk-chart-tooltip .jk-tt-value small{ font-weight:600; opacity:.7; }
+.jk-chart-tooltip .jk-tt-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.jk-chart-tooltip .jk-tt-diff{ margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,.15); font-size:11px; font-weight:700; }
 </style>
 
 <div class="jk-export-overlay" id="jkExportOverlay">
@@ -9237,6 +9252,8 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
   var origDrawChart = window.drawChart;
   var lastTrendSignature = null;
   var trendAnimState = { values: null };
+  var trendPointsCache = [];   // [{x,y,label,total}] for hover hit-testing on #trendChart
+  var weeklyPointsCache = [];  // [{x,y,label,actual,target}] for hover hit-testing on #weeklyTrendChart
 
   function computeTrendData(records){
     // Mirrors the exact logic inside drawChart() so we can animate it.
@@ -9290,8 +9307,10 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     ctx.beginPath(); ctx.moveTo(startX,h-50); trendData.forEach(function(r,i){ ctx.lineTo(x(i),y(r.total)); }); ctx.lineTo(startX+chartWidth,h-50); ctx.fillStyle=grad; ctx.fill();
     ctx.strokeStyle='#6c9576'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.beginPath();
     trendData.forEach(function(r,i){ i ? ctx.lineTo(x(i),y(r.total)) : ctx.moveTo(x(i),y(r.total)); }); ctx.stroke();
+    trendPointsCache = [];
     trendData.forEach(function(r,i){
       var px=x(i), py=y(r.total);
+      trendPointsCache.push({ x:px, y:py, label:r.label, total:r.total });
       if(r.total>0 || trendData.length<=15){
         ctx.fillStyle='white'; ctx.strokeStyle='#6c9576'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(px,py,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
         if(trendData.length<=15 && r.total>0){ ctx.fillStyle='#211e17'; ctx.font='bold 10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign='center'; ctx.fillText((r.total).toLocaleString('id-ID',{minimumFractionDigits:2,maximumFractionDigits:2}), px, py-10); }
@@ -9394,6 +9413,9 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     }
     drawLine(targetValues, '#d977a7', true);
     drawLine(actualValues, '#6c9576', false);
+    weeklyPointsCache = days.map(function(dStr,i){
+      return { x:x(i), y:y(actualValues[i]), yTarget:y(targetValues[i]), date:dStr, actual:actualValues[i], target:targetValues[i] };
+    });
     days.forEach(function(dStr,i){
       var label = dStr.slice(8,10)+'/'+dStr.slice(5,7);
       ctx.fillStyle='#6b6656'; ctx.font='10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign='center'; ctx.fillText(label, x(i), h-14);
@@ -9870,6 +9892,162 @@ html[data-theme="dark"] .jk-format-row button.active{ color:#8ff3cf!important; b
     safe(window.renderSustainabilityTip);
     setTimeout(enforceContrastSafety, 500);
   });
+
+  /* ============================================================
+     INTERACTIVE HOVER TOOLTIPS for the canvas charts
+     ("Emisi 7 Hari Terakhir" trend chart + the 7-day dual-line
+     Actual vs Target chart). Pure canvas hit-testing against the
+     point caches populated in paintTrendFrame / drawWeeklyDualFrame,
+     with a small GSAP pop-in tooltip + a live crosshair/highlight
+     dot redrawn on top of the chart each time the cursor moves.
+     ============================================================ */
+  function ensureTooltipEl(){
+    var tip = document.getElementById('jkChartTooltip');
+    if(!tip){
+      tip = document.createElement('div');
+      tip.id = 'jkChartTooltip';
+      tip.className = 'jk-chart-tooltip';
+      document.body.appendChild(tip);
+    }
+    return tip;
+  }
+
+  function positionTooltip(tip, clientX, clientY){
+    var pad = 14, tw = tip.offsetWidth || 150, th = tip.offsetHeight || 50;
+    var left = clientX + pad, top = clientY - th - pad;
+    if(left + tw > window.innerWidth - 8) left = clientX - tw - pad;
+    if(top < 8) top = clientY + pad;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+  }
+
+  function showTooltip(tip, html, clientX, clientY, firstShow){
+    tip.innerHTML = html;
+    positionTooltip(tip, clientX, clientY);
+    tip.classList.add('show');
+    if(hasGSAP && firstShow){
+      gsap.fromTo(tip, { scale:0.85, opacity:0 }, { scale:1, opacity:1, duration:0.28, ease:'back.out(2.2)' });
+    } else if(hasGSAP){
+      gsap.to(tip, { opacity:1, duration:0.12 });
+    }
+  }
+  function hideTooltip(tip){
+    if(!tip.classList.contains('show')) return;
+    tip.classList.remove('show');
+    if(hasGSAP) gsap.to(tip, { opacity:0, scale:0.9, duration:0.18, ease:'power1.in' });
+  }
+
+  function nearestPointIndex(points, mouseX){
+    if(!points || !points.length) return -1;
+    var bestI=0, bestD=Infinity;
+    for(var i=0;i<points.length;i++){
+      var d = Math.abs(points[i].x - mouseX);
+      if(d < bestD){ bestD = d; bestI = i; }
+    }
+    return bestI;
+  }
+
+  function drawHoverHighlight(canvas, point, color, secondaryPoint, secondaryColor){
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    var h = canvas.clientHeight;
+    // crosshair
+    ctx.strokeStyle = 'rgba(75,122,91,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(point.x, 6); ctx.lineTo(point.x, h-6); ctx.stroke();
+    ctx.setLineDash([]);
+    // outer glow ring + dot on primary series
+    ctx.beginPath(); ctx.arc(point.x, point.y, 8, 0, Math.PI*2); ctx.fillStyle = color+'33'; ctx.fill();
+    ctx.beginPath(); ctx.arc(point.x, point.y, 5, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    if(secondaryPoint){
+      ctx.beginPath(); ctx.arc(point.x, secondaryPoint.y, 8, 0, Math.PI*2); ctx.fillStyle = secondaryColor+'33'; ctx.fill();
+      ctx.beginPath(); ctx.arc(point.x, secondaryPoint.y, 5, 0, Math.PI*2); ctx.fillStyle = secondaryColor; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function fmtKg(v){ return (typeof fmt==='function' ? fmt(v) : (Math.round(v*100)/100).toLocaleString('id-ID')); }
+
+  function wireTrendChartHover(){
+    var canvas = document.getElementById('trendChart');
+    if(!canvas || canvas.dataset.jkHoverWired) return;
+    canvas.dataset.jkHoverWired = '1';
+    var tip = ensureTooltipEl();
+    var lastIdx = -1;
+
+    function handleMove(clientX, clientY){
+      var rect = canvas.getBoundingClientRect();
+      var mx = clientX - rect.left;
+      if(!trendPointsCache.length) return;
+      var idx = nearestPointIndex(trendPointsCache, mx);
+      if(idx < 0) return;
+      var p = trendPointsCache[idx];
+      var firstShow = (idx !== lastIdx) || !tip.classList.contains('show');
+      lastIdx = idx;
+      // redraw the base frame then overlay the highlight so the dot tracks the cursor cleanly
+      var subtitleNow = document.getElementById('chartSubtitle') ? document.getElementById('chartSubtitle').textContent : '';
+      paintTrendFrame(canvas, trendPointsCache.map(function(pt){ return { label: pt.label, total: pt.total }; }), subtitleNow);
+      drawHoverHighlight(canvas, trendPointsCache[idx], '#4b7a5b');
+      showTooltip(tip,
+        '<div class="jk-tt-label">Hari / Bulan ' + p.label + '</div>' +
+        '<div class="jk-tt-value"><span class="jk-tt-dot" style="background:#4b7a5b"></span>' + fmtKg(p.total) + ' <small>kgCO₂e</small></div>',
+        clientX, clientY, firstShow);
+    }
+    canvas.addEventListener('mousemove', function(e){ handleMove(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseleave', function(){ lastIdx=-1; hideTooltip(tip); });
+    canvas.addEventListener('touchstart', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
+    canvas.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
+    canvas.addEventListener('touchend', function(){ lastIdx=-1; hideTooltip(tip); });
+  }
+
+  function wireWeeklyChartHover(){
+    var canvas = document.getElementById('weeklyTrendChart');
+    if(!canvas || canvas.dataset.jkHoverWired) return;
+    canvas.dataset.jkHoverWired = '1';
+    var tip = ensureTooltipEl();
+    var lastIdx = -1;
+
+    function handleMove(clientX, clientY){
+      var rect = canvas.getBoundingClientRect();
+      var mx = clientX - rect.left;
+      if(!weeklyPointsCache.length) return;
+      var idx = nearestPointIndex(weeklyPointsCache, mx);
+      if(idx < 0) return;
+      var p = weeklyPointsCache[idx];
+      var firstShow = (idx !== lastIdx) || !tip.classList.contains('show');
+      lastIdx = idx;
+      drawWeeklyDualFrame(canvas, weeklyPointsCache.map(function(pt){ return pt.date; }), weeklyPointsCache.map(function(pt){ return pt.actual; }), weeklyPointsCache.map(function(pt){ return pt.target; }));
+      drawHoverHighlight(canvas, {x:p.x,y:p.y}, '#6c9576', {x:p.x,y:p.yTarget}, '#d977a7');
+      var diff = p.target - p.actual;
+      var diffLabel = diff >= 0 ? ('✅ '+fmtKg(Math.abs(diff))+' kg di bawah target') : ('⚠️ '+fmtKg(Math.abs(diff))+' kg di atas target');
+      showTooltip(tip,
+        '<div class="jk-tt-label">' + p.date + '</div>' +
+        '<div class="jk-tt-value"><span class="jk-tt-dot" style="background:#6c9576"></span>Aktual: ' + fmtKg(p.actual) + ' <small>kg</small></div>' +
+        '<div class="jk-tt-value"><span class="jk-tt-dot" style="background:#d977a7"></span>Target: ' + fmtKg(p.target) + ' <small>kg</small></div>' +
+        '<div class="jk-tt-diff">' + diffLabel + '</div>',
+        clientX, clientY, firstShow);
+    }
+    canvas.addEventListener('mousemove', function(e){ handleMove(e.clientX, e.clientY); });
+    canvas.addEventListener('mouseleave', function(){ lastIdx=-1; hideTooltip(tip); drawWeeklyDualChart(); });
+    canvas.addEventListener('touchstart', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
+    canvas.addEventListener('touchmove', function(e){ var t=e.touches[0]; if(t) handleMove(t.clientX, t.clientY); }, {passive:true});
+    canvas.addEventListener('touchend', function(){ lastIdx=-1; hideTooltip(tip); drawWeeklyDualChart(); });
+  }
+
+  // Re-wire on every dashboard render (guarded so listeners attach only once per canvas element).
+  var origRenderDashboardForHover = window.renderDashboard;
+  if(typeof origRenderDashboardForHover === 'function'){
+    window.renderDashboard = function(){
+      var r = origRenderDashboardForHover.apply(this, arguments);
+      safe(wireTrendChartHover);
+      safe(wireWeeklyChartHover);
+      return r;
+    };
+  }
+  ready(function(){ safe(wireTrendChartHover); safe(wireWeeklyChartHover); });
 
 })();
 </script>
